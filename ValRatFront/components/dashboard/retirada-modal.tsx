@@ -1,0 +1,339 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle
+} from '@/components/ui/dialog'
+
+import { Button } from '@/components/ui/button'
+
+import { Input } from '@/components/ui/input'
+
+import { Label } from '@/components/ui/label'
+
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from '@/components/ui/select'
+
+interface Asset {
+    ticker: string
+    quantity: number
+    currentPrice: number
+}
+
+interface Props {
+    open: boolean
+    onClose: () => void
+    onSuccess: () => void
+    assets?: Asset[]
+}
+
+export function RetiradaModal({
+    open,
+    onClose,
+    onSuccess,
+    assets
+}: Props) {
+
+    const [ticker, setTicker] = useState('')
+    const [quantidade, setQuantidade] = useState(1)
+
+    const [erro, setErro] = useState('')
+    const [salvando, setSalvando] = useState(false)
+
+    const ativoSelecionado = useMemo(() => {
+
+        return (assets || []).find(
+            (asset) => asset.ticker === ticker
+        )
+
+    }, [assets, ticker])
+
+    useEffect(() => {
+
+        setQuantidade(1)
+
+    }, [ticker])
+
+    const valorRetirada = useMemo(() => {
+
+        if (!ativoSelecionado) {
+            return 0
+        }
+
+        return (
+            quantidade *
+            ativoSelecionado.currentPrice
+        )
+
+    }, [quantidade, ativoSelecionado])
+
+    const salvar = async () => {
+
+        setErro('')
+
+        if (!ticker) {
+            setErro('Selecione um ativo')
+            return
+        }
+
+        if (!ativoSelecionado) {
+            setErro('Ativo inválido')
+            return
+        }
+
+        if (quantidade <= 0) {
+            setErro('Quantidade inválida')
+            return
+        }
+
+        if (quantidade > ativoSelecionado.quantity) {
+            setErro('Quantidade maior que posição atual')
+            return
+        }
+
+        try {
+
+            setSalvando(true)
+
+            const response = await fetch(
+                'http://127.0.0.1:8000/retiradas',
+                {
+                    method: 'POST',
+
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+
+                    body: JSON.stringify({
+                        ticker,
+                        quantidade
+                    })
+                }
+            )
+
+            if (!response.ok) {
+
+                const body =
+                    await response.json()
+
+                throw new Error(
+                    body?.detail ||
+                    'Erro ao retirar'
+                )
+            }
+
+            onSuccess()
+            onClose()
+
+        } catch (error) {
+
+            setErro(
+                error instanceof Error
+                    ? error.message
+                    : 'Erro ao retirar'
+            )
+
+        } finally {
+
+            setSalvando(false)
+        }
+    }
+
+    return (
+        <Dialog
+            open={open}
+            onOpenChange={(isOpen) => {
+                if (!isOpen) onClose()
+            }}
+        >
+
+            <DialogContent>
+
+                <DialogHeader>
+
+                    <DialogTitle>
+                        Retirar ativo
+                    </DialogTitle>
+
+                    <DialogDescription>
+                        Informe quantas ações deseja retirar.
+                    </DialogDescription>
+
+                </DialogHeader>
+
+                <div className="grid gap-4">
+
+                    <div className="grid gap-2">
+
+                        <Label>Ativo</Label>
+
+                        <Select
+                            value={ticker}
+                            onValueChange={setTicker}
+                        >
+
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecione um ativo" />
+                            </SelectTrigger>
+                            <SelectContent>
+
+                                {Object.values(
+
+                                    (assets || []).reduce((acc, asset) => {
+
+                                        if (!acc[asset.ticker]) {
+
+                                            acc[asset.ticker] = {
+                                                ticker: asset.ticker,
+                                                quantity: 0,
+                                                currentPrice: asset.currentPrice
+                                            }
+                                        }
+
+                                        acc[asset.ticker].quantity += asset.quantity
+
+                                        return acc
+
+                                    }, {} as Record<string, Asset>)
+
+                                ).map((asset) => (
+
+                                    <SelectItem
+                                        key={asset.ticker}
+                                        value={asset.ticker}
+                                    >
+
+                                        {asset.ticker}
+                                        {' • '}
+                                        {asset.quantity}
+                                        {' cotas • R$ '}
+                                        {asset.currentPrice.toFixed(2)}
+
+                                    </SelectItem>
+
+                                ))}
+
+                            </SelectContent>
+
+                        </Select>
+
+                    </div>
+
+                    {ativoSelecionado && (
+
+                        <>
+                            <div className="text-sm text-muted-foreground">
+
+                                Quantidade disponível:
+                                {' '}
+                                <strong>
+                                    {ativoSelecionado.quantity}
+                                </strong>
+
+                            </div>
+
+                            <div className="text-sm text-muted-foreground">
+
+                                Preço atual:
+                                {' '}
+                                <strong>
+                                    {ativoSelecionado.currentPrice.toLocaleString(
+                                        'pt-BR',
+                                        {
+                                            style: 'currency',
+                                            currency: 'BRL'
+                                        }
+                                    )}
+                                </strong>
+
+                            </div>
+                        </>
+
+                    )}
+
+                    <div className="grid gap-2">
+
+                        <Label>
+                            Quantidade
+                        </Label>
+
+                        <Input
+                            type="number"
+                            min={1}
+                            max={
+                                ativoSelecionado?.quantity || 1
+                            }
+                            value={quantidade}
+                            onChange={(e) =>
+                                setQuantidade(
+                                    Number(e.target.value)
+                                )
+                            }
+                        />
+
+                    </div>
+
+                    <div className="rounded-lg border p-3 bg-muted/30">
+
+                        <p className="text-sm text-muted-foreground">
+                            Valor estimado da retirada
+                        </p>
+
+                        <p className="text-xl font-bold">
+
+                            {valorRetirada.toLocaleString(
+                                'pt-BR',
+                                {
+                                    style: 'currency',
+                                    currency: 'BRL'
+                                }
+                            )}
+
+                        </p>
+
+                    </div>
+
+                    {erro && (
+                        <p className="text-sm text-red-500">
+                            {erro}
+                        </p>
+                    )}
+
+                </div>
+
+                <DialogFooter>
+
+                    <Button
+                        variant="outline"
+                        onClick={onClose}
+                    >
+                        Cancelar
+                    </Button>
+
+                    <Button
+                        onClick={salvar}
+                        disabled={salvando}
+                    >
+                        {salvando
+                            ? 'Processando...'
+                            : 'Confirmar retirada'}
+                    </Button>
+
+                </DialogFooter>
+
+            </DialogContent>
+
+        </Dialog>
+    )
+}
