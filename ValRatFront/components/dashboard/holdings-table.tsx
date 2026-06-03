@@ -36,14 +36,13 @@ interface HoldingsTableProps {
   isLoading?: boolean
 }
 
-type SortField = 'ticker' | 'currentValue' | 'profitLoss' | 'percentChange'
+type SortField = 'ticker' | 'currentValue' | 'profitLoss' | 'percentChange' | 'data_compra'
 type SortDirection = 'asc' | 'desc'
 
 export function HoldingsTable({ assets, isLoading }: HoldingsTableProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>('currentValue')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -56,6 +55,15 @@ export function HoldingsTable({ assets, isLoading }: HoldingsTableProps) {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
   }
 
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-'
+    const parts = dateStr.split('-')
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`
+    }
+    return dateStr
+  }
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -63,16 +71,6 @@ export function HoldingsTable({ assets, isLoading }: HoldingsTableProps) {
       setSortField(field)
       setSortDirection('desc')
     }
-  }
-
-  const toggleRowExpand = (id: string) => {
-    const newExpanded = new Set(expandedRows)
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id)
-    } else {
-      newExpanded.add(id)
-    }
-    setExpandedRows(newExpanded)
   }
 
   const filteredAndSortedAssets = useMemo(() => {
@@ -83,8 +81,14 @@ export function HoldingsTable({ assets, isLoading }: HoldingsTableProps) {
     )
 
     filtered.sort((a, b) => {
-      const aValue = a[sortField]
-      const bValue = b[sortField]
+      let aValue: any = a[sortField as keyof Asset]
+      let bValue: any = b[sortField as keyof Asset]
+      
+      if (sortField === 'data_compra') {
+        aValue = a.data_compra || ''
+        bValue = b.data_compra || ''
+      }
+      
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         return sortDirection === 'asc'
           ? aValue.localeCompare(bValue)
@@ -106,9 +110,10 @@ export function HoldingsTable({ assets, isLoading }: HoldingsTableProps) {
       fundo: 'bg-blue-50 text-blue-700 border-blue-200',
       cdb: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       lci: 'bg-violet-50 text-violet-700 border-violet-200',
-      lca: 'bg-pink-50 text-pink-700 border-pink-200'
+      lca: 'bg-pink-50 text-pink-700 border-pink-200',
+      tesouro: 'bg-green-50 text-green-700 border-green-200'
     }
-    return colors[type]
+    return colors[type] || 'bg-secondary/50 text-secondary-foreground'
   }
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -186,6 +191,11 @@ export function HoldingsTable({ assets, isLoading }: HoldingsTableProps) {
                     Variação <SortIcon field="percentChange" />
                   </Button>
                 </TableHead>
+                <TableHead className="text-right">
+                  <Button variant="ghost" size="sm" className="h-auto p-0 font-semibold text-muted-foreground hover:text-foreground ml-auto" onClick={() => handleSort('data_compra')}>
+                    Data Compra <SortIcon field="data_compra" />
+                  </Button>
+                </TableHead>
               </TableRow>
             </TableHeader>
 
@@ -202,7 +212,7 @@ export function HoldingsTable({ assets, isLoading }: HoldingsTableProps) {
 
                   <TableCell className="text-center">
                     <Badge className={cn("border", getTypeBadgeColor(asset.type))}>
-                      {assetTypeLabels[asset.type]}
+                      {assetTypeLabels[asset.type] || asset.type}
                     </Badge>
                   </TableCell>
 
@@ -234,6 +244,10 @@ export function HoldingsTable({ assets, isLoading }: HoldingsTableProps) {
                     asset.percentChange >= 0 ? "text-emerald-600" : "text-red-600"
                   )}>
                     {formatPercent(asset.percentChange)}
+                  </TableCell>
+
+                  <TableCell className="text-right font-mono text-sm">
+                    {formatDate(asset.data_compra || '')}
                   </TableCell>
                 </TableRow>
               ))}
