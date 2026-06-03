@@ -22,26 +22,9 @@ CRIPTO = "cripto"
 # GRUPOS
 # =========================
 
-RENDA_VARIAVEL_TYPES = [
-
-    ACAO,
-    FII,
-    ETF,
-    FUNDO,
-    CRIPTO
-]
-
-RENDA_FIXA_TYPES = [
-
-    CDB,
-    LCI,
-    LCA,
-    TESOURO,
-    CRI,
-    CRA,
-    DEBENTURE
-]
-
+RENDA_VARIAVEL_TYPES = [ACAO, FII, ETF, FUNDO, CRIPTO]
+RENDA_FIXA_TYPES = [CDB, LCI, LCA, TESOURO, CRI, CRA, DEBENTURE]
+ISENTOS_IR = [LCI, LCA, CRI, CRA]  # NOVO
 
 # =========================
 # INDEXADORES

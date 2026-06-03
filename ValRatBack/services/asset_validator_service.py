@@ -5,12 +5,24 @@ from constants.asset_types import RENDA_VARIAVEL_TYPES, RENDA_FIXA_TYPES
 
 # Lista de tickers conhecidos (para sugestões)
 TICKERS_CONHECIDOS = {
-    "acao": ["PETR4", "VALE3", "ITUB4", "BBDC4", "ABEV3", "BBAS3", "WEGE3", "RENT3", "MGLU3", "VIIA3"],
-    "etf": ["BOVA11", "IVVB11", "SMAL11", "GOLD11", "HASH11", "NSDV11"],
-    "fii": ["HGLG11", "KNRI11", "MXRF11", "VISC11", "TORD11", "HGRU11", "XPML11", "BRCR11"],
+    "acao": [
+        "PETR4", "VALE3", "ITUB4", "BBDC4", "ABEV3", 
+        "BBAS3", "WEGE3", "RENT3", "MGLU3", "VIIA3"
+    ],
+    "etf": [
+        "BOVA11", "IVVB11", "SMAL11", "GOLD11", "HASH11", 
+        "NSDV11", "DIVO11", "XINA11", "ACWI11", "BDRX11"
+    ],
+    "fii": [
+        "HGLG11", "KNRI11", "MXRF11", "VISC11", "TORD11", 
+        "HGRU11", "XPML11", "BRCR11", "IRDM11", "LVBI11"
+    ],
     "cdb": ["CDB_INTER_110", "CDB_NUBANK_100", "CDB_BTG_105"],
     "lci": ["LCI_XP_92", "LCI_INTER_93", "LCI_BTG_91"],
-    "lca": ["LCA_BTG_93", "LCA_INTER_94", "LCA_XP_90"]
+    "lca": ["LCA_BTG_93", "LCA_INTER_94", "LCA_XP_90"],
+    "tesouro": ["TESOURO_SELIC", "TESOURO_IPCA_2035", "TESOURO_PRE_2026"],
+    "fundo": [],  # Será populado via API posteriormente
+    "cripto": ["BTC", "ETH", "SOL", "ADA", "XRP"]  # Para quando implementar
 }
 
 # Lista de indexadores conhecidos
@@ -113,16 +125,17 @@ def buscar_sugestoes_ticker(tipo: str, termo: str = "") -> List[Dict[str, str]]:
 
 def obter_opcoes_tipo() -> List[Dict[str, Any]]:
     """
-    Retorna todas as opções de tipo de ativo com seus metadados.
+    Retorna todas as opções de tipo de ativo.
     """
     return [
         {"value": "acao", "label": "Ação", "icon": "📈", "description": "Ações de empresas brasileiras"},
         {"value": "etf", "label": "ETF", "icon": "📊", "description": "Fundos de índice"},
         {"value": "fii", "label": "FII", "icon": "🏢", "description": "Fundos Imobiliários"},
         {"value": "cdb", "label": "CDB", "icon": "💰", "description": "Certificado de Depósito Bancário"},
-        {"value": "lci", "label": "LCI", "icon": "🏠", "description": "Letra de Crédito Imobiliário"},
-        {"value": "lca", "label": "LCA", "icon": "🌾", "description": "Letra de Crédito do Agronegócio"},
+        {"value": "lci", "label": "LCI", "icon": "🏠", "description": "Letra de Crédito Imobiliário (Isento IR)"},
+        {"value": "lca", "label": "LCA", "icon": "🌾", "description": "Letra de Crédito do Agronegócio (Isento IR)"},
         {"value": "tesouro", "label": "Tesouro Direto", "icon": "🏦", "description": "Títulos públicos federais"},
+        {"value": "cripto", "label": "Criptomoeda", "icon": "₿", "description": "Bitcoin, Ethereum, etc"},
         {"value": "fundo", "label": "Fundo de Investimento", "icon": "📁", "description": "Fundos de investimento em geral"}
     ]
 

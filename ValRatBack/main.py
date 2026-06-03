@@ -1,8 +1,7 @@
-# main.py (CORRIGIDO)
-
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import ORJSONResponse
 from pydantic import BaseModel
 
 from database import engine, SessionLocal
@@ -15,7 +14,7 @@ from entities.historico_ativo import HistoricoAtivo
 from models.compra_model import CompraModel
 from models.renda_fixa_model import RendaFixaModel
 
-from services.portfolio_service import montar_portfolio
+from services.portfolio_service import montar_portfolio, montar_portfolio_resumido
 from services.carteira_service import cadastrar_compra_api, remover_compra, retirar_valor
 from services.renda_fixa_service import cadastrar_renda_fixa
 from services.historico_service import registrar_snapshot
@@ -40,8 +39,6 @@ HistoricoAtivo.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Scheduler desativado temporariamente (serviço pode não existir)
-    # iniciar_scheduler()
     salvar_snapshot_diario()
     yield
 
@@ -50,7 +47,10 @@ async def lifespan(app: FastAPI):
 # APP
 # =========================
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    default_response_class=ORJSONResponse
+)
 
 
 # =========================
@@ -59,7 +59,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,21 +80,34 @@ class RetiradaModel(BaseModel):
 # =========================
 
 @app.get("/")
-def home():
+async def home():
     return {"mensagem": "API online"}
 
 
+@app.get("/carteira/rapida")
+async def get_carteira_rapida():
+    """Versão rápida (apenas totais do último snapshot)"""
+    return montar_portfolio_resumido()
+
+
+@app.get("/carteira/completa")
+async def get_carteira_completa(force_refresh: bool = False):
+    """Versão completa com cache de 30 segundos"""
+    return montar_portfolio(force_refresh=force_refresh)
+
+
 @app.get("/carteira")
-def get_carteira():
-    return montar_portfolio()
+async def get_carteira(force_refresh: bool = False):
+    """Redireciona para completa (compatibilidade)"""
+    return montar_portfolio(force_refresh=force_refresh)
 
 
 @app.post("/compras")
-def cadastrar_compra(compra: CompraModel):
+async def cadastrar_compra(compra: CompraModel):
     resultado = cadastrar_compra_api(
-        tipo=compra.tipo,
+        categoria=compra.categoria,
         ticker=compra.ticker,
-        data_compra=compra.data,
+        data_compra=compra.data_compra,
         quantidade=compra.quantidade,
         plataforma=compra.plataforma,
         valor_investido=compra.valor_investido,
@@ -102,19 +115,18 @@ def cadastrar_compra(compra: CompraModel):
         indexador=compra.indexador,
         data_vencimento=compra.data_vencimento
     )
-    registrar_snapshot()
     return resultado
 
 
 @app.delete("/compras/{id}")
-def deletar_compra(id: int):
+async def deletar_compra(id: int):
     resultado = remover_compra(id)
     registrar_snapshot()
     return resultado
 
 
 @app.post("/retiradas")
-def realizar_retirada(retirada: RetiradaModel):
+async def realizar_retirada(retirada: RetiradaModel):
     resultado = retirar_valor(
         ticker=retirada.ticker,
         quantidade=retirada.quantidade
@@ -124,14 +136,14 @@ def realizar_retirada(retirada: RetiradaModel):
 
 
 @app.post("/renda-fixa")
-def criar_renda_fixa(renda_fixa: RendaFixaModel):
+async def criar_renda_fixa(renda_fixa: RendaFixaModel):
     resultado = cadastrar_renda_fixa(renda_fixa)
     registrar_snapshot()
     return resultado
 
 
 @app.get("/historico")
-def get_historico():
+async def get_historico():
     db = SessionLocal()
     historico = db.query(HistoricoPatrimonio).order_by(HistoricoPatrimonio.id.asc()).all()
     
@@ -150,18 +162,15 @@ def get_historico():
 
 
 @app.get("/benchmark")
-def benchmark():
+async def benchmark():
     carteira = montar_portfolio()
     benchmarks = get_benchmarks()
-    
-    # Adiciona o percentual da carteira no retorno
     benchmarks["carteira_percentual"] = carteira.get("percentChange", 0)
-    
     return benchmarks
 
 
 @app.get("/ativos/{ticker}/historico")
-def get_historico_ativo(ticker: str):
+async def get_historico_ativo(ticker: str):
     db = SessionLocal()
     
     historico = db.query(HistoricoAtivo).filter(HistoricoAtivo.ticker == ticker).order_by(HistoricoAtivo.data.asc()).all()
@@ -183,38 +192,26 @@ def get_historico_ativo(ticker: str):
     db.close()
     return resultado
 
-@app.get("/ativos/sugestoes")
-def sugestoes_ativos(tipo: str, termo: str = ""):
-    """Retorna sugestões de tickers para autocomplete"""
-    from services.asset_validator_service import buscar_sugestoes_ticker, obter_opcoes_tipo
-    
-    if tipo == "__opcoes__":
-        return obter_opcoes_tipo()
-    
-    return buscar_sugestoes_ticker(tipo, termo)
-
 
 @app.get("/ativos/validar")
-def validar_ativo(tipo: str, ticker: str):
-    """Valida se um ativo existe antes de cadastrar"""
-    from services.asset_validator_service import validar_ticker, validar_tipo_ativo
-    
-    # Primeiro valida o tipo
-    val_tipo = validar_tipo_ativo(tipo)
-    if not val_tipo["valido"]:
-        return val_tipo
-    
-    # Depois valida o ticker
-    return validar_ticker(ticker, tipo)
+async def validar_ativo(ticker: str, tipo: str):
+    from services.asset_cache_service import validar_ativo
+    return validar_ativo(ticker, tipo)
 
 
-@app.get("/ativos/opcoes")
-def opcoes_ativos():
-    """Retorna todas as opções disponíveis para selects"""
-    from services.asset_validator_service import obter_opcoes_tipo, obter_opcoes_indexador
-    
-    return {
-        "tipos": obter_opcoes_tipo(),
-        "indexadores": obter_opcoes_indexador(),
-        "plataformas": ["XP", "Inter", "Nubank", "BTG", "Clear", "Rico", "Modal"]
-    }
+@app.get("/ativos/sugestoes")
+async def sugestoes_ativos(termo: str = ""):
+    from services.asset_cache_service import buscar_sugestoes
+    return buscar_sugestoes(termo)
+
+@app.get("/forcar-snapshot")
+async def forcar_snapshot():
+    from services.analytics.snapshot_service import salvar_snapshot_diario
+    salvar_snapshot_diario()
+    return {"mensagem": "Snapshot forçado com sucesso"}
+
+@app.post("/snapshot")
+async def forcar_snapshot():
+    from services.analytics.snapshot_service import salvar_snapshot_diario
+    salvar_snapshot_diario()
+    return {"mensagem": "Snapshot forçado"}

@@ -2,42 +2,47 @@
 
 from datetime import datetime
 from database import SessionLocal
-from entities.historico_ativo import HistoricoAtivo
+from entities.historico_patrimonio import HistoricoPatrimonio
+from services.portfolio_service import montar_portfolio
 
 
 def salvar_snapshot_diario():
-    """
-    Salva snapshot diário do portfólio.
-    Importa montar_portfolio dentro da função para evitar circular import.
-    """
-    
-    from services.portfolio_service import montar_portfolio
-    
+    """Salva snapshot do patrimônio total"""
     db = SessionLocal()
     
     try:
-        portfolio = montar_portfolio()
-        assets = portfolio.get("assets", [])
-
-        agora = datetime.now()
-
-        for asset in assets:
-            historico = HistoricoAtivo(
-                ticker=asset.get("ticker", ""),
-                tipo=asset.get("type", ""),
-                preco=asset.get("currentPrice", 0),
-                quantidade=asset.get("quantity", 0),
-                valor_total=asset.get("currentValue", 0),
-                data_snapshot=agora
-            )
-            db.add(historico)
-
+        # Força recálculo do portfólio
+        portfolio = montar_portfolio(force_refresh=True)
+        
+        total_balance = portfolio.get("totalBalance", 0)
+        total_invested = portfolio.get("totalInvested", 0)
+        profit_loss = portfolio.get("profitLoss", 0)
+        
+        # Calcula percentual (evita divisão por zero)
+        if total_invested > 0:
+            percentual = (profit_loss / total_invested) * 100
+        else:
+            percentual = 0.0
+        
+        snapshot = HistoricoPatrimonio(
+            patrimonio=total_balance,
+            investido=total_invested,
+            lucro=profit_loss,
+            percentual=percentual,
+            data=datetime.now()
+        )
+        
+        db.add(snapshot)
         db.commit()
-        print(f"✅ Snapshot salvo: {len(assets)} ativos")
+        print(f"✅ Snapshot salvo: patrimônio R$ {total_balance:.2f}")
         
     except Exception as e:
-        print(f"❌ Erro ao salvar snapshot: {e}")
+        print(f"❌ Erro no snapshot: {e}")
         db.rollback()
-        
     finally:
         db.close()
+
+
+def registrar_snapshot():
+    """Alias para compatibilidade"""
+    return salvar_snapshot_diario()

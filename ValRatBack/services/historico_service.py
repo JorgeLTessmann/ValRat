@@ -1,54 +1,7 @@
-from datetime import datetime
+# services/historico_service.py
 
-from database import SessionLocal
-
-from entities.historico_patrimonio import (
-    HistoricoPatrimonio
-)
-
-from services.portfolio_service import (
-    montar_portfolio
-)
+from services.analytics.snapshot_service import salvar_snapshot_diario
 
 
 def registrar_snapshot():
-
-    db = SessionLocal()
-
-    try:
-
-        portfolio = montar_portfolio()
-
-        snapshot = HistoricoPatrimonio(
-
-            data=datetime.now(),
-
-            patrimonio=portfolio[
-                "totalBalance"
-            ],
-
-            investido=portfolio[
-                "totalInvested"
-            ],
-
-            lucro=portfolio[
-                "profitLoss"
-            ]
-        )
-
-        db.add(snapshot)
-
-        db.commit()
-
-    except Exception as e:
-
-        print(
-            "Erro ao registrar snapshot:",
-            str(e)
-        )
-
-        db.rollback()
-
-    finally:
-
-        db.close()
+    salvar_snapshot_diario()

@@ -1,20 +1,41 @@
 """
 Serviço centralizado para busca de preços e rentabilidade.
 Atende todos os tipos de ativos:
-- Renda variável: busca da BRAPI
+- Renda variável: busca da BRAPI (com histórico desde 1986)
 - Renda fixa: busca da BrasilAPI (taxas indexadoras)
-- Fundos: dados da CVM via BrasilAPI
 """
 
 import os
 import requests
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN_BRAPI")
+
+
+# =========================
+# UTILITÁRIOS
+# =========================
+
+def _data_eh_futura(data_str: str) -> bool:
+    """Verifica se a data é futura"""
+    try:
+        data_busca = datetime.strptime(data_str, "%Y-%m-%d").date()
+        hoje = date.today()
+        return data_busca > hoje
+    except:
+        return False
+
+
+def _converter_timestamp_para_str(timestamp):
+    """Converte timestamp para string YYYY-MM-DD"""
+    if isinstance(timestamp, (int, float)):
+        return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
+    return str(timestamp)[:10] if timestamp else ""
+
 
 # =========================
 # RENDA VARIÁVEL
@@ -23,43 +44,78 @@ TOKEN = os.getenv("TOKEN_BRAPI")
 def buscar_preco_historico_variavel(ticker: str, data_str: str) -> Optional[float]:
     """
     Busca preço de fechamento de ação/FII/ETF em data específica.
-    Usa o histórico da BRAPI (range de até 5 anos).
+    Usa BRAPI primeiro, fallback para Yahoo Finance.
     """
-    url = f"https://brapi.dev/api/quote/{ticker}?range=5y&interval=1d&token={TOKEN}"
+    data_busca = datetime.strptime(data_str, "%Y-%m-%d").date()
+    hoje = date.today()
+    
+    if data_busca > hoje:
+        print(f"⚠️ Data {data_str} é futura, usando preço atual para {ticker}")
+        return buscar_preco_atual_variavel(ticker)
+    
+    # Define período: desde 1986 até a data buscada
+    data_inicio = "1986-01-01"
+    
+    url = f"https://brapi.dev/api/quote/{ticker}?startDate={data_inicio}&endDate={data_str}&interval=1d&token={TOKEN}"
     
     try:
         response = requests.get(url, timeout=15)
         if response.status_code != 200:
-            return None
+            print(f"❌ BRAPI erro {response.status_code} para {ticker}")
+            return _fallback_yahoo(ticker, data_str)
         
         data = response.json()
         results = data.get("results", [])
         if not results:
-            return None
+            print(f"❌ BRAPI sem resultados para {ticker}")
+            return _fallback_yahoo(ticker, data_str)
         
         historical = results[0].get("historicalDataPrice", [])
         if not historical:
-            return None
+            print(f"⚠️ Histórico vazio para {ticker}, tentando Yahoo...")
+            return _fallback_yahoo(ticker, data_str)
         
-        # Converte data alvo para timestamp
-        data_alvo = datetime.strptime(data_str, "%Y-%m-%d").timestamp()
-        
-        # Encontra o preço mais recente anterior ou igual à data alvo
-        preco_encontrado = None
-        data_encontrada = 0
-        
+        # Busca o preço exato na data
         for item in historical:
-            item_date = item.get("date", 0)
-            if item_date <= data_alvo and item_date > data_encontrada:
-                data_encontrada = item_date
-                preco_encontrado = item.get("close")
+            item_date = item.get("date")
+            item_date_str = _converter_timestamp_para_str(item_date)
+            
+            if item_date_str == data_str:
+                preco = item.get("close")
+                if preco:
+                    print(f"✅ Preço histórico {ticker} em {data_str}: R$ {preco}")
+                    return preco
         
-        return preco_encontrado
+        # Se não encontrou exato, pega o mais próximo (anterior)
+        for item in reversed(historical):
+            item_date = item.get("date")
+            item_date_str = _converter_timestamp_para_str(item_date)
+            
+            if item_date_str <= data_str:
+                preco = item.get("close")
+                if preco:
+                    print(f"⚠️ Preço aproximado {ticker} em {data_str}: R$ {preco} (data mais próxima: {item_date_str})")
+                    return preco
+        
+        # Fallback para Yahoo
+        return _fallback_yahoo(ticker, data_str)
     
     except Exception as e:
-        print(f"Erro ao buscar preço histórico para {ticker}: {e}")
-        return None
+        print(f"❌ Erro ao buscar preço histórico para {ticker}: {e}")
+        return _fallback_yahoo(ticker, data_str)
 
+
+def _fallback_yahoo(ticker: str, data_str: str) -> Optional[float]:
+    """Fallback para Yahoo Finance quando BRAPI falha"""
+    try:
+        from services.market.yahoo_provider import buscar_preco_historico_yahoo
+        preco = buscar_preco_historico_yahoo(ticker, data_str)
+        if preco:
+            print(f"✅ Yahoo fallback: {ticker} em {data_str} = R$ {preco}")
+        return preco
+    except Exception as e:
+        print(f"❌ Yahoo fallback também falhou para {ticker}: {e}")
+        return buscar_preco_atual_variavel(ticker)
 
 def buscar_preco_atual_variavel(ticker: str) -> Optional[float]:
     """
@@ -70,17 +126,24 @@ def buscar_preco_atual_variavel(ticker: str) -> Optional[float]:
     try:
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
+            print(f"❌ BRAPI erro {response.status_code} para {ticker}")
             return None
         
         data = response.json()
         results = data.get("results", [])
         if not results:
+            print(f"❌ BRAPI sem resultados para {ticker}")
             return None
         
-        return results[0].get("regularMarketPrice")
+        preco = results[0].get("regularMarketPrice")
+        if preco is None:
+            print(f"⚠️ Campo 'regularMarketPrice' não encontrado para {ticker}")
+            return None
+        
+        return preco
     
     except Exception as e:
-        print(f"Erro ao buscar preço atual para {ticker}: {e}")
+        print(f"❌ Erro ao buscar preço atual para {ticker}: {e}")
         return None
 
 
@@ -132,10 +195,8 @@ def buscar_cota_fundo(cnpj: str, data_str: Optional[str] = None) -> Optional[flo
             return None
         
         if data_str is None:
-            # Pega a cota mais recente
             return cotas[0].get("cota")
         
-        # Busca cota por data
         data_alvo = datetime.strptime(data_str, "%Y-%m-%d").date()
         
         for item in cotas:
@@ -163,7 +224,7 @@ def buscar_preco(
     Função universal para buscar preço de qualquer tipo de ativo.
     
     Args:
-        tipo: acao, etf, fii, cdb, lci, lca, fundo
+        tipo: acao, etf, fii, cdb, lci, lca, fundo, tesouro
         codigo: ticker (para variável) ou CNPJ (para fundo) ou nome (para fixa)
         data: data no formato YYYY-MM-DD (opcional, se não informada retorna preço atual)
     
