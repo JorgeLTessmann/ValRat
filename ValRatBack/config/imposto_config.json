@@ -1,63 +1,15 @@
 {
+  "ativos_isentos": ["lci", "lca", "lc", "cra", "cri", "debenture_incentivada"],
   "aliquotas_ir": {
-    "descricao": "Tabela regressiva de Imposto de Renda para Renda Fixa (CDB, Tesouro, Debêntures)",
-    "regras": [
-      {
-        "dias_min": 0,
-        "dias_max": 180,
-        "aliquota": 22.5,
-        "descricao": "Até 180 dias"
-      },
-      {
-        "dias_min": 181,
-        "dias_max": 360,
-        "aliquota": 20.0,
-        "descricao": "De 181 a 360 dias"
-      },
-      {
-        "dias_min": 361,
-        "dias_max": 720,
-        "aliquota": 17.5,
-        "descricao": "De 361 a 720 dias"
-      },
-      {
-        "dias_min": 721,
-        "dias_max": null,
-        "aliquota": 15.0,
-        "descricao": "Acima de 720 dias"
-      }
-    ]
+    "ate_180": 0.225,
+    "ate_360": 0.20,
+    "ate_720": 0.175,
+    "acima_720": 0.15
   },
-  "ativos_isentos_ir": {
-    "descricao": "Ativos que não pagam Imposto de Renda para pessoa física",
-    "lista": [
-      "lci",
-      "lca",
-      "cri",
-      "cra",
-      "fii_dividendo"
-    ]
-  },
-  "acoes": {
-    "swing_trade": 15.0,
-    "day_trade": 20.0,
-    "descricao": "Swing trade = mais de 1 dia; Day trade = compra e venda no mesmo dia"
-  },
-  "criptomoedas": {
-    "aliquota_padrao": 15.0,
-    "aliquota_maior": 22.5,
-    "limite_isencao_mensal": 35000,
-    "descricao": "Isento até R$ 35.000 vendidos por mês. Acima disso, 15% (ou 22,5% para day trade)"
-  },
-  "fundos_investimento": {
-    "aliquota_padrao": 20.0,
-    "come_cotas": true,
-    "descricao": "Fundos de investimento em geral têm come-cotas semestral e alíquota fixa de 20%"
-  },
-  "versoes": {
-    "atual": "1.0",
-    "data_vigencia": "2026-01-01",
-    "observacao": "Regras pós-caducidade da MP 1.303/2025",
-    "proxima_atualizacao": "2027-01-01"
-  }
+  "tabela_regressiva": [
+    {"dias": 180, "aliquota": 0.225},
+    {"dias": 360, "aliquota": 0.20},
+    {"dias": 720, "aliquota": 0.175},
+    {"dias": 999999, "aliquota": 0.15}
+  ]
 }

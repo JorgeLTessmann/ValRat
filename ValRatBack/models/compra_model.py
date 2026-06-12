@@ -5,13 +5,21 @@ from typing import Optional
 
 
 class CompraModel(BaseModel):
+    # Comuns
     categoria: str
-    ticker: str
     data_compra: str
-    quantidade: float
     plataforma: str
-    tipo_renda_fixa: Optional[str] = None 
+    
+    # Para renda variável/cripto
+    ticker: Optional[str] = None
+    quantidade: Optional[float] = None
+    
+    # Para renda fixa
+    nome_aplicacao: Optional[str] = None
     valor_investido: Optional[float] = None
-    taxa: Optional[float] = None
-    indexador: Optional[str] = None
     data_vencimento: Optional[str] = None
+    tem_carencia: Optional[bool] = False
+    data_carencia: Optional[str] = None
+    tipo_renda_fixa: Optional[str] = None  # 'cdb', 'lci', 'lca', 'tesouro'
+    indexador: Optional[str] = None        # 'CDI', 'IPCA', 'PRE'
+    taxa_contratada: Optional[float] = None

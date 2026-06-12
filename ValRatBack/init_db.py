@@ -1,4 +1,4 @@
-# init_db.py (já está correto, apenas rode depois de alterar a entidade)
+# init_db.py
 
 from database import Base, engine
 from entities.compra import Compra
@@ -9,5 +9,8 @@ from entities.historico_ativo import HistoricoAtivo
 from entities.retirada import Retirada
 from entities.transacao import Transacao
 
+# Cria todas as tabelas com a estrutura mais recente
 Base.metadata.create_all(bind=engine)
+
 print("✅ Banco recriado com sucesso!")
+print("📋 Tabelas criadas/atualizadas: compras, renda_fixa, historico_patrimonio, etc.")

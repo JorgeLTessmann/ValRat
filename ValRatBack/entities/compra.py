@@ -1,6 +1,6 @@
 # entities/compra.py
 
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, Boolean, Date
 from database import Base
 
 
@@ -11,8 +11,9 @@ class Compra(Base):
     ticker = Column(String)
     nome = Column(String)
     tipo = Column(String)
-    categoria = Column(String, nullable=True)
-    tipo_renda_fixa = Column(String, nullable=True)  
+    categoria = Column(String, nullable=True)  # 'variavel', 'fixa', 'cripto'
+    
+    # Campos existentes
     plataforma = Column(String)
     quantidade = Column(Float)
     quantidade_original = Column(Float)
@@ -24,3 +25,10 @@ class Compra(Base):
     taxa = Column(Float, nullable=True)
     indexador = Column(String, nullable=True)
     data_vencimento = Column(String, nullable=True)
+    
+    # NOVOS CAMPOS (para renda fixa)
+    nome_aplicacao = Column(String, nullable=True)      # Nome do produto
+    tem_carencia = Column(Boolean, default=False)      # Possui carência?
+    data_carencia = Column(String, nullable=True)      # Data limite da carência
+    tipo_renda_fixa = Column(String, nullable=True)    # 'cdb', 'lci', 'lca', 'tesouro'
+    taxa_contratada = Column(Float, nullable=True)     # Taxa informada pelo usuário

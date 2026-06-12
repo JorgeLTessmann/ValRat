@@ -67,13 +67,24 @@ export function WalletCard({
 
   if (isLoading) {
     return (
-      <Card className="overflow-hidden border-border/50 shadow-sm">
-        <CardContent className="p-8">
+      <Card className="overflow-hidden border-border/60 shadow-sm">
+        <CardContent className="p-6 lg:p-8">
           <div className="space-y-6">
-            <Skeleton className="h-6 w-32" />
-            <Skeleton className="h-14 w-64" />
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-[200px] w-full" />
+            <div className="flex justify-between items-center">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-8 w-8 rounded-md" />
+            </div>
+            <Skeleton className="h-12 w-3/4 max-w-[280px]" />
+            <div className="flex gap-3">
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-6 w-24" />
+            </div>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-8 w-10" />
+              ))}
+            </div>
+            <Skeleton className="h-[200px] w-full rounded-xl" />
           </div>
         </CardContent>
       </Card>
@@ -81,61 +92,64 @@ export function WalletCard({
   }
 
   return (
-    <Card className="overflow-hidden border-border/50 shadow-sm hover:shadow-md transition-shadow duration-300">
+    <Card className="overflow-hidden border-border/60 shadow-sm bg-card transition-all duration-200">
       <CardContent className="p-6 lg:p-8">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
             Patrimônio Total
           </span>
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-primary hover:text-primary/80 hover:bg-accent"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             onClick={() => setIsVisible(!isVisible)}
+            title={isVisible ? "Ocultar valores" : "Mostrar valores"}
           >
             {isVisible ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
           </Button>
         </div>
 
-        <div className="mb-4">
-          <h2 className="text-4xl lg:text-5xl font-bold tracking-tight text-foreground">
+        <div className="mb-3">
+          <h2 className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground font-mono">
             {isVisible ? formatCurrency(totalBalance) : '••••••••'}
           </h2>
         </div>
 
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-2.5 mb-8">
           <div className={cn(
-            'flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium',
+            'flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border shadow-none',
             isPositive 
-              ? 'bg-emerald-50 text-emerald-700' 
-              : 'bg-red-50 text-red-700'
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' 
+              : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
           )}>
             {isPositive ? (
-              <TrendingUp className="h-3.5 w-3.5" />
+              <TrendingUp className="h-3 w-3 shrink-0" />
             ) : (
-              <TrendingDown className="h-3.5 w-3.5" />
+              <TrendingDown className="h-3 w-3 shrink-0" />
             )}
             <span>{isVisible ? `${isPositive ? '+' : ''}${percentChange.toFixed(2)}%` : '••••'}</span>
           </div>
+          
           <span className={cn(
-            'text-sm font-medium',
-            isPositive ? 'text-emerald-700' : 'text-red-700'
+            'text-sm font-semibold font-mono',
+            isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
           )}>
             {isVisible ? `${isPositive ? '+' : ''}${formatCurrency(profitLoss)}` : '••••••'}
           </span>
         </div>
 
-        <div className="flex gap-1 mb-6">
+        {/* Container de Períodos Refatorado estilo ToggleGroup */}
+        <div className="flex gap-1 mb-6 bg-muted/50 p-1 rounded-lg w-fit border border-border/40">
           {(['1D', '1W', '1M', '1Y', 'ALL'] as const).map((tf) => (
             <Button
               key={tf}
-              variant={timeframe === tf ? 'default' : 'ghost'}
+              variant="ghost"
               size="sm"
               className={cn(
-                'text-xs px-3 h-8 transition-all duration-200',
+                'text-xs px-3 h-7 font-medium rounded-md transition-all duration-150 shadow-none',
                 timeframe === tf 
-                  ? 'bg-primary text-primary-foreground shadow-sm' 
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  ? 'bg-background text-foreground shadow-sm border border-border/40' 
+                  : 'text-muted-foreground hover:text-foreground hover:bg-transparent'
               )}
               onClick={() => setTimeframe(tf)}
             >
@@ -144,7 +158,7 @@ export function WalletCard({
           ))}
         </div>
 
-        <div className="h-[180px] lg:h-[220px]">
+        <div className="h-[180px] lg:h-[220px] w-full">
           <PortfolioChart data={getFilteredData()} isVisible={isVisible} />
         </div>
       </CardContent>

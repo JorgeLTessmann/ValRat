@@ -10,8 +10,10 @@ interface PortfolioChartProps {
 export function PortfolioChart({ data, isVisible = true }: PortfolioChartProps) {
   if (!isVisible) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-secondary/30 rounded-xl">
-        <span className="text-muted-foreground text-sm">Dados ocultos</span>
+      <div className="h-full w-full flex flex-col items-center justify-center bg-muted/40 border border-border/40 rounded-xl transition-all duration-200">
+        <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          Dados ocultos
+        </span>
       </div>
     )
   }
@@ -34,11 +36,12 @@ export function PortfolioChart({ data, isVisible = true }: PortfolioChartProps) 
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+      <AreaChart data={data} margin={{ top: 12, right: 12, left: -12, bottom: 0 }}>
         <defs>
-          <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#D4AF37" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="#D4AF37" stopOpacity={0} />
+          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+            {/* O gradiente agora utiliza a cor primária do seu tema de forma fluida */}
+            <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.2} />
+            <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.0} />
           </linearGradient>
         </defs>
         <XAxis
@@ -46,36 +49,42 @@ export function PortfolioChart({ data, isVisible = true }: PortfolioChartProps) 
           tickFormatter={formatDate}
           axisLine={false}
           tickLine={false}
-          tick={{ fontSize: 11, fill: '#6B7280' }}
+          className="text-[11px] font-medium"
+          stroke="currentColor"
+          tick={{ fill: 'var(--muted-foreground)', opacity: 0.8 }}
+          dy={10}
           interval="preserveStartEnd"
-          minTickGap={50}
+          minTickGap={45}
         />
         <YAxis
           tickFormatter={formatValue}
           axisLine={false}
           tickLine={false}
-          tick={{ fontSize: 11, fill: '#6B7280' }}
-          width={70}
+          className="text-[11px] font-medium"
+          stroke="currentColor"
+          tick={{ fill: 'var(--muted-foreground)', opacity: 0.8 }}
+          width={65}
           domain={['dataMin - 1000', 'dataMax + 1000']}
         />
         <Tooltip
+          cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '4 4' }}
           content={({ active, payload }) => {
             if (active && payload && payload.length) {
-              const data = payload[0].payload
+              const currentData = payload[0].payload
               return (
-                <div className="bg-card border border-border rounded-lg shadow-lg p-3">
-                  <p className="text-xs text-muted-foreground mb-1">
+                <div className="bg-popover border border-border/80 rounded-lg shadow-md p-3 transition-all backdrop-blur-sm">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mb-1">
                     {new Intl.DateTimeFormat('pt-BR', {
                       day: '2-digit',
                       month: 'long',
                       year: 'numeric'
-                    }).format(new Date(data.date))}
+                    }).format(new Date(currentData.date))}
                   </p>
-                  <p className="text-sm font-semibold text-foreground">
+                  <p className="text-sm font-semibold tracking-tight text-popover-foreground">
                     {new Intl.NumberFormat('pt-BR', {
                       style: 'currency',
                       currency: 'BRL'
-                    }).format(data.value)}
+                    }).format(currentData.value)}
                   </p>
                 </div>
               )
@@ -86,9 +95,10 @@ export function PortfolioChart({ data, isVisible = true }: PortfolioChartProps) 
         <Area
           type="monotone"
           dataKey="value"
-          stroke="#D4AF37"
+          stroke="var(--primary)"
           strokeWidth={2}
-          fill="url(#goldGradient)"
+          activeDot={{ r: 4, stroke: 'var(--background)', strokeWidth: 2 }}
+          fill="url(#chartGradient)"
         />
       </AreaChart>
     </ResponsiveContainer>

@@ -1,24 +1,14 @@
-from apscheduler.schedulers.blocking import (
-    BlockingScheduler
-)
+from apscheduler.schedulers.background import BackgroundScheduler
+from services.analytics.snapshot_service import salvar_snapshot_diario
+import time
+import threading
 
-from services.snapshot.snapshot_service import (
-    salvar_snapshot
-)
+def iniciar_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(salvar_snapshot_diario, 'interval', hours=24)
+    scheduler.start()
+    print("✅ Scheduler iniciado - Snapshot diário agendado")
+    return scheduler
 
-scheduler = BlockingScheduler()
-
-scheduler.add_job(
-
-    salvar_snapshot,
-
-    'interval',
-
-    hours=24
-)
-
-print(
-    "Scheduler iniciado..."
-)
-
-scheduler.start()
+# Inicia automaticamente
+scheduler = iniciar_scheduler()

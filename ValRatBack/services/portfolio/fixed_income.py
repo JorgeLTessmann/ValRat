@@ -1,16 +1,18 @@
 # services/portfolio/fixed_income.py
 
+import logging
 from datetime import date
 from services.price_service import calcular_valor_atual_fixa
 from services.imposto_service import calcular_ir
 
+logger = logging.getLogger(__name__)
+
 
 def calcular_renda_fixa_das_compras(compras_fixa, data_referencia: date = None):
-    """
-    Calcula o valor atual de cada compra de renda fixa, já com IR descontado.
-    """
     if data_referencia is None:
         data_referencia = date.today()
+    
+    logger.info(f"Calculando renda fixa para {len(compras_fixa)} compras")
     
     assets = []
     total_balance = 0.0
@@ -18,18 +20,16 @@ def calcular_renda_fixa_das_compras(compras_fixa, data_referencia: date = None):
     total_ir = 0.0
 
     for compra in compras_fixa:
-        # Valor bruto (sem IR)
         valor_bruto = calcular_valor_atual_fixa(
             valor_inicial=compra.valor_investido,
-            taxa_percentual=compra.taxa,
+            taxa_percentual=compra.taxa_contratada,
             indexador=compra.indexador,
             data_aplicacao_str=compra.data_compra
         )
         
         lucro_bruto = valor_bruto - compra.valor_investido
-        
-        # Calcula IR sobre o lucro
         data_compra = date.fromisoformat(compra.data_compra)
+        
         ir = calcular_ir(
             tipo_ativo=compra.tipo_renda_fixa or "cdb",
             data_compra=data_compra,
@@ -39,13 +39,12 @@ def calcular_renda_fixa_das_compras(compras_fixa, data_referencia: date = None):
         
         valor_liquido = valor_bruto - ir
         lucro_liquido = valor_liquido - compra.valor_investido
-        percentual = (lucro_liquido / compra.valor_investido * 100) if compra.valor_investido > 0 else 0.0
+        percentual = (lucro_liquido / compra.valor_investido * 100) if compra.valor_investido > 0 else 0
 
         total_balance += valor_liquido
         total_invested += compra.valor_investido
         total_ir += ir
 
-        # Define o tipo de exibição
         tipo_exibicao = compra.tipo_renda_fixa or "cdb"
         labels = {"cdb": "CDB", "lci": "LCI", "lca": "LCA", "tesouro": "Tesouro"}
         tipo_label = labels.get(tipo_exibicao, "Renda Fixa")
@@ -53,7 +52,7 @@ def calcular_renda_fixa_das_compras(compras_fixa, data_referencia: date = None):
         assets.append({
             "id": f"f_{compra.id}",
             "ticker": compra.ticker,
-            "name": compra.nome or compra.ticker,
+            "name": compra.nome_aplicacao or compra.ticker,
             "type": tipo_exibicao,
             "type_label": tipo_label,
             "quantity": compra.quantidade_restante,

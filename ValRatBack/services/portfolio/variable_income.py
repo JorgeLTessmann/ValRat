@@ -1,16 +1,18 @@
 # services/portfolio/variable_income.py
 
+import logging
 from datetime import date
 from services.price_service import buscar_preco, calcular_rentabilidade
 from services.imposto_service import calcular_ir
 
+logger = logging.getLogger(__name__)
+
 
 def calcular_renda_variavel(compras, data_referencia: date = None):
-    """
-    Retorna cada compra como um asset individual, já com IR.
-    """
     if data_referencia is None:
         data_referencia = date.today()
+    
+    logger.info(f"Calculando renda variável para {len(compras)} compras")
     
     assets = []
     total_balance = 0
@@ -18,13 +20,11 @@ def calcular_renda_variavel(compras, data_referencia: date = None):
     total_ir = 0
 
     for compra in compras:
-        tipo_busca = "acao"
-        if compra.categoria == "cripto":
-            tipo_busca = "cripto"
-        
+        tipo_busca = "cripto" if compra.categoria == "cripto" else "acao"
         preco_atual = buscar_preco(tipo_busca, compra.ticker, None)
         
         if preco_atual is None:
+            logger.warning(f"❌ Preço não encontrado para {compra.ticker} (tipo: {tipo_busca})")
             continue
         
         rent = calcular_rentabilidade(
@@ -35,9 +35,8 @@ def calcular_renda_variavel(compras, data_referencia: date = None):
         )
         
         lucro_bruto = rent["lucro"]
-        
-        # Calcula IR (para ações, alíquota padrão de 15% sobre lucro)
         data_compra = date.fromisoformat(compra.data_compra)
+        
         ir = calcular_ir(
             tipo_ativo=compra.tipo or "acao",
             data_compra=data_compra,

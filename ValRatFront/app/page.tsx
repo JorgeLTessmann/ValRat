@@ -40,7 +40,7 @@ import {
 } from 'lucide-react'
 
 export default function DashboardPage() {
-  // Estado de autenticação (simples - sem senha real)
+  // Estado de autenticação
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoadingAuth, setIsLoadingAuth] = useState(false)
 
@@ -85,12 +85,12 @@ export default function DashboardPage() {
   useEffect(() => {
     const loadResumo = async () => {
       try {
-        console.log('Chamando fetchPortfolioResumo...')
         const data = await fetchPortfolioResumo()
-        console.log('Dados recebidos:', data)
         setResumoData(data)
       } catch (error) {
         console.error('Erro ao carregar resumo:', error)
+        // Define dados padrão para não quebrar
+        setResumoData({ totalBalance: 0, totalInvested: 0, profitLoss: 0, percentChange: 0 })
       } finally {
         setResumoLoading(false)
       }
@@ -98,7 +98,7 @@ export default function DashboardPage() {
     loadResumo()
   }, [])
 
-  // Tela de acesso (antes de mostrar os dados)
+  // Tela de acesso
   const handleAcessarConta = () => {
     setIsLoadingAuth(true)
     setTimeout(() => {
@@ -107,7 +107,7 @@ export default function DashboardPage() {
     }, 800)
   }
 
-  // Se não está autenticado, mostra tela de acesso
+  // Se não autenticado
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -117,14 +117,10 @@ export default function DashboardPage() {
               <Shield className="w-10 h-10 text-primary" />
             </div>
           </div>
-
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">ValRat</h1>
-            <p className="text-muted-foreground">
-              Seu gestor de investimentos pessoal
-            </p>
+            <p className="text-muted-foreground">Seu gestor de investimentos pessoal</p>
           </div>
-
           <Card className="border-border/50 shadow-sm">
             <CardContent className="pt-6">
               <div className="space-y-4">
@@ -133,18 +129,10 @@ export default function DashboardPage() {
                     Acesse sua conta para visualizar seus investimentos, acompanhar rentabilidade e gerenciar sua carteira.
                   </p>
                   <div className="bg-secondary/30 rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground">
-                      🔒 Ambiente seguro e criptografado
-                    </p>
+                    <p className="text-xs text-muted-foreground">🔒 Ambiente seguro e criptografado</p>
                   </div>
                 </div>
-
-                <Button
-                  onClick={handleAcessarConta}
-                  disabled={isLoadingAuth}
-                  className="w-full gap-2"
-                  size="lg"
-                >
+                <Button onClick={handleAcessarConta} disabled={isLoadingAuth} className="w-full gap-2" size="lg">
                   {isLoadingAuth ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -160,16 +148,13 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-
-          <p className="text-xs text-muted-foreground">
-            Versão de demonstração • Dados de mercado podem ter atraso
-          </p>
+          <p className="text-xs text-muted-foreground">Versão de demonstração • Dados de mercado podem ter atraso</p>
         </div>
       </div>
     )
   }
 
-  // Tela de loading enquanto carrega os dados (espera resumo E portfolio)
+  // Tela de loading (enquanto carrega)
   if (resumoLoading || portfolioLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -184,13 +169,12 @@ export default function DashboardPage() {
   // Após carregar, verifica se há investimentos
   const temInvestimentos = portfolio?.assets && portfolio.assets.length > 0
 
-  // Se não há investimentos, mostra tela vazia
+  // Tela vazia (sem investimentos)
   if (!temInvestimentos) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <DashboardHeader userName="Pedro" />
-
           <div className="mb-8">
             <StatsGrid
               totalBalance={resumoData?.totalBalance ?? 0}
@@ -200,9 +184,7 @@ export default function DashboardPage() {
               isLoading={false}
             />
           </div>
-
           <EmptyState onAddInvestment={() => setOpenCompra(true)} />
-
           <footer className="mt-12 pt-8 border-t border-border/50">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
@@ -210,19 +192,11 @@ export default function DashboardPage() {
                 <span className="font-bold text-foreground">Rat</span>
                 <span>© 2026</span>
               </div>
-              <p className="text-center sm:text-right">
-                Dados de mercado podem ter atraso.
-                Não é recomendação de investimento.
-              </p>
+              <p className="text-center sm:text-right">Dados de mercado podem ter atraso. Não é recomendação de investimento.</p>
             </div>
           </footer>
         </div>
-
-        <CompraModal
-          open={openCompra}
-          onClose={() => setOpenCompra(false)}
-          onSuccess={() => mutate()}
-        />
+        <CompraModal open={openCompra} onClose={() => setOpenCompra(false)} onSuccess={() => mutate()} />
       </div>
     )
   }
@@ -233,6 +207,7 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <DashboardHeader userName="Pedro" />
 
+        {/* Stats */}
         <div className="mb-8">
           <StatsGrid
             totalBalance={resumoData?.totalBalance ?? portfolio?.totalBalance ?? 0}
@@ -243,6 +218,7 @@ export default function DashboardPage() {
           />
         </div>
 
+        {/* Top grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-2 space-y-6">
             <WalletCard
@@ -277,7 +253,6 @@ export default function DashboardPage() {
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(portfolio?.totalBalance ?? resumoData?.totalBalance ?? 0)}
                     </span>
                   </div>
-
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Landmark className="w-5 h-5 text-primary" />
@@ -287,7 +262,6 @@ export default function DashboardPage() {
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(portfolio?.totalInvested ?? resumoData?.totalInvested ?? 0)}
                     </span>
                   </div>
-
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <TrendingUp className="w-5 h-5 text-primary" />
@@ -297,15 +271,12 @@ export default function DashboardPage() {
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(portfolio?.profitLoss ?? resumoData?.profitLoss ?? 0)}
                     </span>
                   </div>
-
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <PieChart className="w-5 h-5 text-primary" />
                       <span>Ativos</span>
                     </div>
-                    <span className="font-semibold">
-                      {portfolio?.assets?.length ?? 0}
-                    </span>
+                    <span className="font-semibold">{portfolio?.assets?.length ?? 0}</span>
                   </div>
                 </div>
               </CardContent>
@@ -313,12 +284,10 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Second grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-1 space-y-6">
-            <AssetAllocation
-              allocations={portfolio?.allocations ?? []}
-              isLoading={false}
-            />
+            <AssetAllocation allocations={portfolio?.allocations ?? []} isLoading={false} />
             <BenchmarkCard
               carteira={benchmarks?.carteira ?? 0}
               cdi={benchmarks?.cdi ?? 0}
@@ -326,20 +295,14 @@ export default function DashboardPage() {
               ibov={benchmarks?.ibov ?? 0}
             />
           </div>
-
           <div className="lg:col-span-2">
-            <TransactionLedger
-              transactions={portfolio?.transactions ?? []}
-              isLoading={false}
-            />
+            <TransactionLedger transactions={portfolio?.transactions ?? []} isLoading={false} />
           </div>
         </div>
 
+        {/* Holdings */}
         <div className="mb-8">
-          <HoldingsTable
-            assets={portfolio?.assets ?? []}
-            isLoading={false}
-          />
+          <HoldingsTable assets={portfolio?.assets ?? []} isLoading={false} />
         </div>
 
         <footer className="mt-12 pt-8 border-t border-border/50">
@@ -349,25 +312,13 @@ export default function DashboardPage() {
               <span className="font-bold text-foreground">Rat</span>
               <span>© 2026</span>
             </div>
-            <p className="text-center sm:text-right">
-              Dados de mercado podem ter atraso.
-              Não é recomendação de investimento.
-            </p>
+            <p className="text-center sm:text-right">Dados de mercado podem ter atraso. Não é recomendação de investimento.</p>
           </div>
         </footer>
       </div>
 
-      <CompraModal
-        open={openCompra}
-        onClose={() => setOpenCompra(false)}
-        onSuccess={() => mutate()}
-      />
-
-      <RendimentoModal
-        open={isRendimentoOpen}
-        onOpenChange={setIsRendimentoOpen}
-      />
-
+      <CompraModal open={openCompra} onClose={() => setOpenCompra(false)} onSuccess={() => mutate()} />
+      <RendimentoModal open={isRendimentoOpen} onOpenChange={setIsRendimentoOpen} />
       <RetiradaModal
         open={openRetirada}
         onClose={() => setOpenRetirada(false)}

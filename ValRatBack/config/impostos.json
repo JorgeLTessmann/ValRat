@@ -1,0 +1,14 @@
+{
+  "aliquotas_ir": {
+    "descricao": "Tabela regressiva de Imposto de Renda para Renda Fixa (CDB, Tesouro, Debêntures)",
+    "regras": [
+      { "dias_min": 0, "dias_max": 180, "aliquota": 22.5 },
+      { "dias_min": 181, "dias_max": 360, "aliquota": 20.0 },
+      { "dias_min": 361, "dias_max": 720, "aliquota": 17.5 },
+      { "dias_min": 721, "dias_max": null, "aliquota": 15.0 }
+    ]
+  },
+  "ativos_isentos_ir": {
+    "lista": ["lci", "lca", "cri", "cra"]
+  }
+}

@@ -1,5 +1,6 @@
 # services/carteira_service.py
 
+import logging
 from datetime import datetime
 from database import SessionLocal
 from entities.compra import Compra
@@ -9,6 +10,8 @@ from services.price_service import buscar_preco
 from utils.date_utils import normalizar_data_compra
 from entities.transacao import Transacao
 from services.cache_service import invalidate_cache
+
+logger = logging.getLogger(__name__)
 
 
 def cadastrar_compra_api(
@@ -27,6 +30,7 @@ def cadastrar_compra_api(
     # RENDA FIXA
     # =========================
     if categoria == "fixa":
+        logger.info(f"📥 Iniciando cadastro de renda fixa: {ticker} - R${valor_investido}")
         db = SessionLocal()
         data_normalizada = normalizar_data_compra(data_compra)
         nome = ticker
@@ -56,6 +60,7 @@ def cadastrar_compra_api(
 
         db.add(nova_compra)
         db.flush()
+        logger.info(f"✅ Renda fixa salva no BD com ID: {nova_compra.id}")
 
         transacao = Transacao(
             tipo="compra",
@@ -69,6 +74,7 @@ def cadastrar_compra_api(
 
         db.commit()
         db.refresh(nova_compra)
+        logger.info(f"✅ Transação commitada para {ticker}")
         db.close()
 
         invalidate_cache("portfolio_completo")
@@ -81,6 +87,7 @@ def cadastrar_compra_api(
     # =========================
     # RENDA VARIÁVEL OU CRIPTO
     # =========================
+    logger.info(f"📥 Iniciando cadastro de {categoria}: {ticker} - {quantidade} un")
     db = SessionLocal()
 
     ticker = ticker.strip().upper()
@@ -94,8 +101,10 @@ def cadastrar_compra_api(
 
     # Busca o preço histórico na data da compra
     preco_compra = buscar_preco(tipo_busca, ticker, data_normalizada)
+    logger.info(f"Preço encontrado: {preco_compra}")
     
     if preco_compra is None:
+        logger.error(f"❌ Preço não encontrado para {ticker}")
         db.close()
         return {
             "erro": f"Não foi possível encontrar o preço de {ticker} na data {data_compra}. "
@@ -125,6 +134,7 @@ def cadastrar_compra_api(
 
     db.add(nova_compra)
     db.flush()
+    logger.info(f"✅ Compra salva no BD com ID: {nova_compra.id}")
 
     transacao = Transacao(
         tipo="compra",
@@ -138,9 +148,11 @@ def cadastrar_compra_api(
 
     db.commit()
     db.refresh(nova_compra)
+    logger.info(f"✅ Transação commitada para {ticker}")
     db.close()
 
     invalidate_cache("portfolio_completo")
+    logger.info(f"✅ Cache invalidado")
 
     return {
         "mensagem": "Compra cadastrada com sucesso",

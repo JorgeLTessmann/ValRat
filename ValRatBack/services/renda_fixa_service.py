@@ -1,75 +1,67 @@
-# services/renda_fixa_service.py
-
+from datetime import date
 from database import SessionLocal
-from entities.renda_fixa import RendaFixa
-from entities.transacao import Transacao
+from entities.compra import Compra
 from services.cache_service import invalidate_cache
 
 
-def cadastrar_renda_fixa(renda_fixa_model):
+def cadastrar_renda_fixa(
+    nome_aplicacao: str,
+    valor_aplicado: float,
+    data_aplicacao: date,
+    data_vencimento: date,
+    tipo_ativo: str,
+    indexador: str,
+    taxa_contratada: float,
+    tem_carencia: bool = False,
+    data_carencia: date = None,
+    plataforma: str = None
+):
     """
-    Cadastra um ativo de renda fixa.
-    Valida indexador e taxa antes de salvar.
+    Cadastra um novo ativo de renda fixa no banco de dados.
     """
-    
-    # =========================
-    # VALIDAÇÃO
-    # =========================
-    if not renda_fixa_model.nome:
-        return {"erro": "Nome do produto é obrigatório"}
-        
-    if not renda_fixa_model.indexador:
-        return {"erro": "Indexador é obrigatório (CDI, IPCA, PRE)"}
-    
-    if renda_fixa_model.taxa is None or renda_fixa_model.taxa <= 0:
-        return {"erro": f"Taxa inválida: {renda_fixa_model.taxa}. Use 100 para 100% do CDI, etc."}
-    
-    if renda_fixa_model.valor_aplicado is None or renda_fixa_model.valor_aplicado <= 0:
-        return {"erro": "Valor aplicado é obrigatório"}
-    # =========================
-    # CADASTRO
-    # =========================
     db = SessionLocal()
-    
-    nova_renda_fixa = RendaFixa(
-        nome=renda_fixa_model.nome,
-        tipo=renda_fixa_model.tipo,
-        indexador=renda_fixa_model.indexador,
-        taxa=renda_fixa_model.taxa,
-        valor_aplicado=renda_fixa_model.valor_aplicado,
-        data_aplicacao=renda_fixa_model.data_aplicacao,
-        data_vencimento=renda_fixa_model.data_vencimento,
-        liquidez=renda_fixa_model.liquidez,
-        emissor=renda_fixa_model.emissor,
-        plataforma=renda_fixa_model.plataforma
-    )
-    
-    db.add(nova_renda_fixa)
-    db.flush()
-    
-    # Cria transação associada
-    transacao = Transacao(
-        tipo="compra",
-        ticker=renda_fixa_model.nome,
-        quantidade=1,
-        preco=renda_fixa_model.valor_aplicado,
-        valor=renda_fixa_model.valor_aplicado,
-        status="success"
+
+    # Validações básicas
+    if valor_aplicado <= 0:
+        db.close()
+        return {"erro": "Valor aplicado deve ser maior que zero"}
+
+    if data_aplicacao >= data_vencimento:
+        db.close()
+        return {"erro": "Data de vencimento deve ser posterior à data de aplicação"}
+
+    if tem_carencia and data_carencia is None:
+        db.close()
+        return {"erro": "Data de carência é obrigatória quando há carência"}
+
+    if tem_carencia and data_carencia >= data_vencimento:
+        db.close()
+        return {"erro": "Data de carência deve ser anterior ao vencimento"}
+
+    # Cria o registro com os nomes de campos CORRETOS
+    nova_compra = Compra(
+        nome_aplicacao=nome_aplicacao,
+        valor_investido=valor_aplicado,  
+        data_compra=data_aplicacao,      
+        data_vencimento=data_vencimento,
+        tem_carencia=tem_carencia,
+        data_carencia=data_carencia,
+        tipo_renda_fixa=tipo_ativo,      
+        indexador=indexador,
+        taxa_contratada=taxa_contratada,
+        plataforma=plataforma,
+        categoria="Renda Fixa"           
     )
 
-    if renda_fixa_model.taxa is None or renda_fixa_model.taxa <= 0:
-        return {"erro": "Taxa inválida. Para CDB, use 100 para 100% do CDI, etc."}
-
-    db.add(transacao)
-    
+    db.add(nova_compra)
     db.commit()
-    db.refresh(nova_renda_fixa)
+    db.refresh(nova_compra)
     db.close()
-    
-    # Invalida cache do portfolio
+
+    # Invalida cache do portfólio
     invalidate_cache("portfolio_completo")
-    
+
     return {
         "mensagem": "Renda fixa cadastrada com sucesso",
-        "id": nova_renda_fixa.id
+        "id": nova_compra.id
     }

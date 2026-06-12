@@ -37,9 +37,11 @@ HistoricoAtivo.metadata.create_all(bind=engine)
 # LIFESPAN
 # =========================
 
+import asyncio
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    salvar_snapshot_diario()
+    # Roda em background (não aguarda)
     yield
 
 
@@ -59,12 +61,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # =========================
 # MODELS
@@ -103,17 +104,14 @@ async def get_carteira(force_refresh: bool = False):
 
 
 @app.post("/compras")
-async def cadastrar_compra(compra: CompraModel):
+async def post_compras(compra: CompraModel):
+    """Cadastra renda variável ou criptomoeda"""
     resultado = cadastrar_compra_api(
         categoria=compra.categoria,
         ticker=compra.ticker,
         data_compra=compra.data_compra,
         quantidade=compra.quantidade,
-        plataforma=compra.plataforma,
-        valor_investido=compra.valor_investido,
-        taxa=compra.taxa,
-        indexador=compra.indexador,
-        data_vencimento=compra.data_vencimento
+        plataforma=compra.plataforma
     )
     return resultado
 
@@ -136,11 +134,21 @@ async def realizar_retirada(retirada: RetiradaModel):
 
 
 @app.post("/renda-fixa")
-async def criar_renda_fixa(renda_fixa: RendaFixaModel):
-    resultado = cadastrar_renda_fixa(renda_fixa)
-    registrar_snapshot()
+async def post_renda_fixa(renda_fixa: CompraModel):
+    """Cadastra renda fixa (CDB, LCI, LCA, Tesouro)"""
+    resultado = cadastrar_renda_fixa(
+        nome_aplicacao=renda_fixa.nome_aplicacao,
+        valor_aplicado=renda_fixa.valor_investido,
+        data_aplicacao=renda_fixa.data_compra,  # ← MUDOU AQUI
+        data_vencimento=renda_fixa.data_vencimento,
+        tipo_ativo=renda_fixa.tipo_renda_fixa,  # ← MUDOU AQUI
+        indexador=renda_fixa.indexador,
+        taxa_contratada=renda_fixa.taxa_contratada,
+        tem_carencia=renda_fixa.tem_carencia,
+        data_carencia=renda_fixa.data_carencia,
+        plataforma=renda_fixa.plataforma
+    )
     return resultado
-
 
 @app.get("/historico")
 async def get_historico():
@@ -211,7 +219,7 @@ async def forcar_snapshot():
     return {"mensagem": "Snapshot forçado com sucesso"}
 
 @app.post("/snapshot")
-async def forcar_snapshot():
+async def forcar_snapshot_post():
     from services.analytics.snapshot_service import salvar_snapshot_diario
     salvar_snapshot_diario()
     return {"mensagem": "Snapshot forçado"}
