@@ -16,13 +16,16 @@ import {
   fetchPortfolioResumo,
   fetchPortfolioData,
   fetchHistorico,
-  fetchBenchmarks
+  fetchBenchmarks,
+  loginUsuario,
+  cadastrarUsuario
 } from '@/lib/api'
 import { CompraModal } from '@/components/dashboard/compra-modal'
 import { RendimentoModal } from '@/components/dashboard/rendimento-modal'
 import { RetiradaModal } from '@/components/dashboard/retirada-modal'
 import { PatrimonioChart } from '@/components/dashboard/patrimonio-chart'
 import { BenchmarkCard } from '@/components/dashboard/benchmark-card'
+import { useAuth } from '@/hooks/use-auth'
 import {
   Card,
   CardContent,
@@ -36,26 +39,39 @@ import {
   Landmark,
   PieChart,
   LogIn,
-  Shield
+  Shield,
+  User,
+  X
 } from 'lucide-react'
 
 export default function DashboardPage() {
-  // Estado de autenticação
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isLoadingAuth, setIsLoadingAuth] = useState(false)
+  // Desestruturação do hook com gerenciamento de perfis
+  const {
+    isAuthenticated,
+    currentUser,
+    savedProfiles,
+    login,
+    switchProfile,
+    removeProfile
+  } = useAuth()
 
+  const userName = currentUser?.nome || 'Usuário'
+
+  const [isLoadingAuth, setIsLoadingAuth] = useState(false)
   const [openCompra, setOpenCompra] = useState(false)
   const [isRendimentoOpen, setIsRendimentoOpen] = useState(false)
   const [openRetirada, setOpenRetirada] = useState(false)
 
-  // Dados rápidos (carregam primeiro)
   const [resumoData, setResumoData] = useState<any>(null)
   const [resumoLoading, setResumoLoading] = useState(true)
 
-  // Dados completos (carregam depois)
+  // =========================================================================
+  // CORREÇÃO DOS HOOKS SWR: PASSANDO A URL CORRETA E O E-MAIL COMO ARGUMENTOS
+  // =========================================================================
+
   const { data: portfolio, isLoading: portfolioLoading, mutate } = useSWR(
-    'portfolio-completo',
-    fetchPortfolioData,
+    isAuthenticated && currentUser?.email ? ['/carteira/completa', currentUser.email] : null,
+    ([url, email]) => fetchPortfolioData(url, email),
     {
       refreshInterval: 0,
       revalidateOnFocus: false,
@@ -64,8 +80,8 @@ export default function DashboardPage() {
   )
 
   const { data: historico } = useSWR(
-    'historico',
-    fetchHistorico,
+    isAuthenticated && currentUser?.email ? ['/historico', currentUser.email] : null,
+    ([url, email]) => fetchHistorico(url, email),
     {
       refreshInterval: 0,
       revalidateOnFocus: false
@@ -73,45 +89,64 @@ export default function DashboardPage() {
   )
 
   const { data: benchmarks } = useSWR(
-    'benchmarks',
-    fetchBenchmarks,
+    isAuthenticated && currentUser?.email ? ['/benchmark', currentUser.email] : null,
+    ([url, email]) => fetchBenchmarks(url, email),
     {
       refreshInterval: 60000,
       revalidateOnFocus: false
     }
   )
-
-  // Carrega dados rápidos primeiro
   useEffect(() => {
-    const loadResumo = async () => {
-      try {
-        const data = await fetchPortfolioResumo()
-        setResumoData(data)
-      } catch (error) {
-        console.error('Erro ao carregar resumo:', error)
-        // Define dados padrão para não quebrar
-        setResumoData({ totalBalance: 0, totalInvested: 0, profitLoss: 0, percentChange: 0 })
-      } finally {
-        setResumoLoading(false)
-      }
-    }
-    loadResumo()
-  }, [])
+    // Trava de segurança: só dispara se o usuário e o e-mail existirem
+    if (!isAuthenticated || !currentUser || !currentUser.email) return;
 
-  // Tela de acesso
-  const handleAcessarConta = () => {
+    const loadResumo = async () => {
+      setResumoLoading(true);
+      try {
+        // Passando o endpoint da rota rápida e o e-mail do usuário logado
+        const data = await fetchPortfolioResumo('/carteira/rapida', currentUser.email);
+        setResumoData(data);
+      } catch (error) {
+        console.error('Erro ao carregar resumo:', error);
+      } finally {
+        setResumoLoading(false);
+      }
+    };
+
+    loadResumo();
+  }, [isAuthenticated, currentUser?.email]);
+  
+  const [isCadastro, setIsCadastro] = useState(false)
+  const [authForm, setAuthForm] = useState({ nome: '', email: '', senha: '' })
+  const [authError, setAuthError] = useState('')
+
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setIsLoadingAuth(true)
-    setTimeout(() => {
-      setIsAuthenticated(true)
+    setAuthError('')
+
+    try {
+      if (isCadastro) {
+        await cadastrarUsuario({ nome: authForm.nome, email: authForm.email, senha: authForm.senha })
+        setIsCadastro(false)
+        setAuthForm(prev => ({ ...prev, senha: '' }))
+        alert("Cadastro realizado com sucesso! Faça o login.")
+      } else {
+        const usuario = await loginUsuario({ email: authForm.email, senha: authForm.senha })
+        login(usuario.nome, authForm.email)
+      }
+    } catch (error: any) {
+      setAuthError(error.message || 'Erro na autenticação.')
+    } finally {
       setIsLoadingAuth(false)
-    }, 800)
+    }
   }
 
-  // Se não autenticado
+  // Interface de Autenticação / Seletor de Perfis
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-6 max-w-md mx-auto px-4">
+      <div className="min-h-screen bg-background flex items-center justify-center py-12 px-4">
+        <div className="text-center space-y-6 max-w-md mx-auto w-full">
           <div className="flex justify-center">
             <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
               <Shield className="w-10 h-10 text-primary" />
@@ -119,32 +154,113 @@ export default function DashboardPage() {
           </div>
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">ValRat</h1>
-            <p className="text-muted-foreground">Seu gestor de investimentos pessoal</p>
+            <p className="text-muted-foreground">Quem está investindo hoje?</p>
           </div>
-          <Card className="border-border/50 shadow-sm">
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                <div className="text-left space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    Acesse sua conta para visualizar seus investimentos, acompanhar rentabilidade e gerenciar sua carteira.
-                  </p>
-                  <div className="bg-secondary/30 rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground">🔒 Ambiente seguro e criptografado</p>
+
+          {/* Lista de Perfis Pré-Logados */}
+          {savedProfiles.length > 0 && !isCadastro && (
+            <div className="space-y-2 text-left">
+              <label className="text-xs font-semibold text-muted-foreground px-1">Perfis salvos neste dispositivo</label>
+              <div className="grid grid-cols-1 gap-2">
+                {savedProfiles.map((perfil) => (
+                  <div
+                    key={perfil.email}
+                    onClick={() => switchProfile(perfil.email)}
+                    className="flex items-center justify-between p-3 bg-card border border-border/60 rounded-xl hover:border-primary/50 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary shrink-0">
+                        {perfil.nome.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm text-foreground truncate">{perfil.nome}</p>
+                        <p className="text-xs text-muted-foreground truncate">{perfil.email}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeProfile(perfil.email)
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Card className="border-border/50 shadow-sm text-left">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <User className="w-4 h-4 text-primary" />
+                {isCadastro ? 'Criar uma nova conta' : savedProfiles.length > 0 ? 'Acessar com outra conta' : 'Acesse sua conta'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleAuthSubmit} className="space-y-4">
+                {isCadastro && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">Nome</label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full bg-secondary/50 border border-border rounded-md p-2 text-sm text-foreground focus:outline-none focus:border-primary"
+                      value={authForm.nome}
+                      onChange={e => setAuthForm({ ...authForm, nome: e.target.value })}
+                    />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Email</label>
+                  <input
+                    type="email"
+                    required
+                    className="w-full bg-secondary/50 border border-border rounded-md p-2 text-sm text-foreground focus:outline-none focus:border-primary"
+                    value={authForm.email}
+                    onChange={e => setAuthForm({ ...authForm, email: e.target.value })}
+                  />
                 </div>
-                <Button onClick={handleAcessarConta} disabled={isLoadingAuth} className="w-full gap-2" size="lg">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">Senha</label>
+                  <input
+                    type="password"
+                    required
+                    className="w-full bg-secondary/50 border border-border rounded-md p-2 text-sm text-foreground focus:outline-none focus:border-primary"
+                    value={authForm.senha}
+                    onChange={e => setAuthForm({ ...authForm, senha: e.target.value })}
+                  />
+                </div>
+
+                {authError && <p className="text-xs text-red-500 font-medium">{authError}</p>}
+
+                <Button type="submit" disabled={isLoadingAuth} className="w-full gap-2" size="lg">
                   {isLoadingAuth ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Acessando...
-                    </>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   ) : (
                     <>
                       <LogIn className="w-4 h-4" />
-                      Acessar Conta
+                      {isCadastro ? "Criar Conta" : "Conectar Conta"}
                     </>
                   )}
                 </Button>
+              </form>
+
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => {
+                    setIsCadastro(!isCadastro)
+                    setAuthError('')
+                  }}
+                >
+                  {isCadastro ? "Já tem conta? Faça login" : "Não tem conta? Cadastre-se"}
+                </button>
               </div>
             </CardContent>
           </Card>
@@ -154,7 +270,7 @@ export default function DashboardPage() {
     )
   }
 
-  // Tela de loading (enquanto carrega)
+  // Estado de carregamento dos dados das rotas protegidas
   if (resumoLoading || portfolioLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -166,15 +282,14 @@ export default function DashboardPage() {
     )
   }
 
-  // Após carregar, verifica se há investimentos
   const temInvestimentos = portfolio?.assets && portfolio.assets.length > 0
 
-  // Tela vazia (sem investimentos)
+  // View de Estado Vazio
   if (!temInvestimentos) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <DashboardHeader userName="Pedro" />
+          <DashboardHeader userName={userName} />
           <div className="mb-8">
             <StatsGrid
               totalBalance={resumoData?.totalBalance ?? 0}
@@ -201,13 +316,12 @@ export default function DashboardPage() {
     )
   }
 
-  // Dashboard completo
+  // Dashboard Completa Ativa
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <DashboardHeader userName="Pedro" />
+        <DashboardHeader userName={userName} />
 
-        {/* Stats */}
         <div className="mb-8">
           <StatsGrid
             totalBalance={resumoData?.totalBalance ?? portfolio?.totalBalance ?? 0}
@@ -218,7 +332,6 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Top grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-2 space-y-6">
             <WalletCard
@@ -284,7 +397,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Second grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-1 space-y-6">
             <AssetAllocation allocations={portfolio?.allocations ?? []} isLoading={false} />
@@ -300,9 +412,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Holdings */}
         <div className="mb-8">
-          <HoldingsTable assets={portfolio?.assets ?? []} isLoading={false} />
+          <HoldingsTable assets={(portfolio?.assets ?? []) as any} />
         </div>
 
         <footer className="mt-12 pt-8 border-t border-border/50">
@@ -323,7 +434,7 @@ export default function DashboardPage() {
         open={openRetirada}
         onClose={() => setOpenRetirada(false)}
         onSuccess={() => mutate()}
-        assets={portfolio?.assets ?? []}
+        assets={(portfolio?.assets ?? []) as any}
       />
     </div>
   )

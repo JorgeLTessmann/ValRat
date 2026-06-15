@@ -1,3 +1,5 @@
+# services/renda_fixa_service.py
+
 from datetime import date
 from database import SessionLocal
 from entities.compra import Compra
@@ -5,8 +7,9 @@ from services.cache_service import invalidate_cache
 
 
 def cadastrar_renda_fixa(
+    usuario_id: int,  # ← Adicionado para vinculação correta da conta
     nome_aplicacao: str,
-    valor_aplicado: float,
+    valor_applied: float,  # Mantendo o mapeamento interno original da sua função
     data_aplicacao: date,
     data_vencimento: date,
     tipo_ativo: str,
@@ -17,12 +20,12 @@ def cadastrar_renda_fixa(
     plataforma: str = None
 ):
     """
-    Cadastra um novo ativo de renda fixa no banco de dados.
+    Cadastra um novo ativo de renda fixa no banco de dados vinculado a um usuário.
     """
     db = SessionLocal()
 
     # Validações básicas
-    if valor_aplicado <= 0:
+    if valor_applied <= 0:
         db.close()
         return {"erro": "Valor aplicado deve ser maior que zero"}
 
@@ -38,10 +41,11 @@ def cadastrar_renda_fixa(
         db.close()
         return {"erro": "Data de carência deve ser anterior ao vencimento"}
 
-    # Cria o registro com os nomes de campos CORRETOS
+    # Cria o registro atrelando o usuario_id enviado pela API
     nova_compra = Compra(
+        usuario_id=usuario_id,  # ← CRÍTICO: Isola o ativo para este usuário
         nome_aplicacao=nome_aplicacao,
-        valor_investido=valor_aplicado,  
+        valor_investido=valor_applied,  
         data_compra=data_aplicacao,      
         data_vencimento=data_vencimento,
         tem_carencia=tem_carencia,
@@ -58,8 +62,8 @@ def cadastrar_renda_fixa(
     db.refresh(nova_compra)
     db.close()
 
-    # Invalida cache do portfólio
-    invalidate_cache("portfolio_completo")
+    # Invalida apenas o cache do portfólio deste usuário específico
+    invalidate_cache(f"portfolio_completo_{usuario_id}")
 
     return {
         "mensagem": "Renda fixa cadastrada com sucesso",

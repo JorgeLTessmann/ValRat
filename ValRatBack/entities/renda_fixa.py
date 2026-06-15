@@ -2,11 +2,10 @@ from sqlalchemy import (
     Column,
     Integer,
     String,
-    Float
+    Float,
+    ForeignKey  # Adicionado
 )
-
 from database import Base
-
 
 class RendaFixa(Base):
 
@@ -16,6 +15,15 @@ class RendaFixa(Base):
         Integer,
         primary_key=True,
         index=True
+    )
+
+    # =========================
+    # RELACIONAMENTO
+    # =========================
+    usuario_id = Column(
+        Integer,
+        ForeignKey("usuarios.id"),
+        nullable=False
     )
 
     nome = Column(
@@ -38,8 +46,9 @@ class RendaFixa(Base):
         nullable=False
     )
 
-    valor_aplicado = Column(
+    valor_applied = Column(  # Mantido conforme seu original (valor_aplicado)
         Float,
+        name="valor_aplicado",
         nullable=False
     )
 

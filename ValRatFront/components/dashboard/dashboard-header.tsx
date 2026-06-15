@@ -2,13 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/use-auth'
+import { LogOut, User, Users } from 'lucide-react'
 
 interface DashboardHeaderProps {
   userName?: string
 }
 
 export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProps) {
+  // Consumindo os dados do usuário ativo e a função de deslogar
+  const { currentUser, logoutCurrent } = useAuth()
+
   const [marketStatus, setMarketStatus] = useState<{ label: string; isOpen: boolean }>({
     label: 'Verificando...',
     isOpen: false
@@ -21,7 +27,7 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
     return 'Boa noite'
   }
 
-  // Lógica dinâmica para verificar o status de funcionamento da B3 (Seg a Sex, 10h às 17h55)
+  // Lógica dinâmica para verificar o status de funcionamento da B3
   useEffect(() => {
     const checkMarketStatus = () => {
       const now = new Date()
@@ -40,13 +46,13 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
     }
 
     checkMarketStatus()
-    const interval = setInterval(checkMarketStatus, 60000) // Atualiza a cada 1 minuto
+    const interval = setInterval(checkMarketStatus, 60000)
     return () => clearInterval(interval)
   }, [])
 
   return (
     <div className="mb-8">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-1 mb-1.5 select-none">
             <span className="text-xl font-black tracking-tight text-primary">Val</span>
@@ -56,34 +62,53 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
           <h1 className="text-3xl lg:text-4xl font-bold text-foreground tracking-tight">
             {getGreeting()}, <span className="text-primary font-extrabold">{userName}</span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Acompanhe seu portfólio e tome decisões mais inteligentes.
+          {/* Exibição da informação básica (Email do usuário logado) */}
+          <p className="mt-1 text-sm text-muted-foreground flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5 text-primary/70" />
+            {currentUser?.email || 'Painel de Controle de Investimentos'}
           </p>
         </div>
         
-        {/* Indicador de Mercado Dinâmico */}
-        <div className="hidden md:block shrink-0">
-          <Card className="border-border/60 shadow-sm bg-card">
-            <CardContent className="py-2 px-3.5">
-              <div className="flex items-center gap-2.5">
-                <span className="relative flex h-2 w-2">
-                  {marketStatus.isOpen && (
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  )}
-                  <span className={cn(
-                    "relative inline-flex rounded-full h-2 w-2",
-                    marketStatus.isOpen 
-                      ? "bg-emerald-500" 
-                      : "bg-muted-foreground/50"
-                  )} />
-                </span>
-                
-                <span className="text-xs font-semibold tracking-wide text-muted-foreground font-mono">
-                  {marketStatus.label}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Lado Direito: Status de Mercado + Gerenciador de Contas */}
+        <div className="flex items-center gap-3 self-end md:self-auto shrink-0">
+          
+          {/* Indicador de Mercado Dinâmico */}
+          <div className="hidden sm:block">
+            <Card className="border-border/60 shadow-sm bg-card">
+              <CardContent className="py-2 px-3.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="relative flex h-2 w-2">
+                    {marketStatus.isOpen && (
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    )}
+                    <span className={cn(
+                      "relative inline-flex rounded-full h-2 w-2",
+                      marketStatus.isOpen 
+                        ? "bg-emerald-500" 
+                        : "bg-muted-foreground/50"
+                    )} />
+                  </span>
+                  
+                  <span className="text-xs font-semibold tracking-wide text-muted-foreground font-mono">
+                    {marketStatus.label}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Botão de Troca Rápida de Perfil / Sair */}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={logoutCurrent}
+            className="h-9 gap-2 border-border/60 text-xs font-semibold shadow-sm hover:bg-secondary transition-all"
+          >
+            <Users className="w-4 h-4 text-muted-foreground" />
+            <span className="hidden xs:inline">Alternar Perfil</span>
+            <LogOut className="w-3.5 h-3.5 text-muted-foreground/70" />
+          </Button>
+
         </div>
       </div>
     </div>

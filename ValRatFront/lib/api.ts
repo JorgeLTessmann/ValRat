@@ -1,109 +1,99 @@
-// lib/api.ts
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-import type { PortfolioData, AssetCategory } from './types'
+const BASE_URL = 'http://127.0.0.1:8000';
 
-// Busca dados completos da carteira (com cache no back)
-export const fetchPortfolioData = async (): Promise<PortfolioData> => {
-  const response = await fetch(`${API_URL}/carteira/completa`)
-  if (!response.ok) {
-    throw new Error("Erro ao buscar carteira")
-  }
-  return response.json()
-}
-
-// Busca dados rápidos da carteira (apenas totais)
-export const fetchPortfolioResumo = async () => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s
-
-  try {
-    const response = await fetch(`${API_URL}/carteira/rapida`, {
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.json();
-  } catch (error) {
-    console.warn("Snapshot ainda não disponível, aguardando...");
-    // Retorna valores padrão sem lançar erro (para não quebrar a UI)
-    return { totalBalance: 0, totalInvested: 0, profitLoss: 0, percentChange: 0 };
-  }
+// Função auxiliar para garantir que a URL não tenha barras duplicadas por acidente
+const buildUrl = (endpoint: string): string => {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${BASE_URL}${cleanEndpoint}`;
 };
 
+const getHeaders = (email: string) => {
+  // Garante que envia uma string limpa ou vazia, sem quebrar
+  const cleanEmail = email && typeof email === 'string' ? email.trim() : '';
+  
+  return {
+    'Content-Type': 'application/json',
+    'X-User-Email': cleanEmail,
+  };
+};
 
-export const cadastrarCompra = async (compra: {
-  categoria: string
-  ticker: string
-  data_compra: string
-  quantidade: number
-  plataforma: string
-  valor_investido?: number
-  taxa?: number
-  indexador?: string
-  data_vencimento?: string
-}) => {
-  const response = await fetch(`${API_URL}/compras`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(compra)
-  })
-  if (!response.ok) {
-    throw new Error("Erro ao cadastrar compra")
+export const fetchPortfolioData = async (endpoint: string, email: string) => {
+  if (!email) throw new Error("Email não fornecido para carregar dados.");
+  
+  const res = await fetch(buildUrl(endpoint), {
+    method: 'GET',
+    headers: getHeaders(email),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Erro ao carregar carteira completa: ${res.status}`);
   }
-  return response.json()
-}
+  return res.json();
+};
 
-export async function fetchHistorico() {
-  const response = await fetch(`${API_URL}/historico`)
-  if (!response.ok) {
-    throw new Error('Erro ao buscar histórico')
+export const fetchPortfolioResumo = async (endpoint: string, email: string) => {
+  if (!email) throw new Error("Email não fornecido para carregar resumo.");
+  
+  const res = await fetch(buildUrl(endpoint), {
+    method: 'GET',
+    headers: getHeaders(email),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Erro ao carregar resumo da carteira: ${res.status}`);
   }
-  return response.json()
-}
+  return res.json();
+};
 
-export async function fetchBenchmarks() {
-  const response = await fetch(`${API_URL}/benchmark`)
-  if (!response.ok) {
-    throw new Error('Erro ao buscar benchmarks')
+export const fetchHistorico = async (endpoint: string, email: string) => {
+  if (!email) throw new Error("Email não fornecido para carregar histórico.");
+
+  const res = await fetch(buildUrl(endpoint), {
+    method: 'GET',
+    headers: getHeaders(email),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Erro ao carregar histórico: ${res.status}`);
   }
-  return response.json()
-}
+  return res.json();
+};
 
-export async function fetchHistoricoAtivo(ticker: string) {
-  const response = await fetch(`${API_URL}/ativos/${ticker}/historico`)
-  if (!response.ok) {
-    throw new Error('Erro ao buscar histórico')
+export const fetchBenchmarks = async (endpoint: string, email: string) => {
+  if (!email) throw new Error("Email não fornecido para carregar benchmarks.");
+
+  const res = await fetch(buildUrl(endpoint), {
+    method: 'GET',
+    headers: getHeaders(email),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Erro ao carregar benchmarks: ${res.status}`);
   }
-  return response.json()
-}
+  return res.json();
+};
 
-// Adicione esta função no arquivo lib/api.ts (depois de cadastrarCompra)
-
-export const cadastrarRendaFixa = async (rendaFixa: {
-  categoria: string
-  data_compra: string
-  plataforma: string
-  nome_aplicacao: string
-  valor_investido: number
-  data_vencimento: string
-  tipo_renda_fixa: string
-  indexador: string
-  taxa_contratada: number
-  tem_carencia?: boolean
-  data_carencia?: string
-}) => {
-  const response = await fetch(`${API_URL}/renda-fixa`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(rendaFixa)
-  })
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Erro ao cadastrar renda fixa: ${error}`)
+export const loginUsuario = async (dados: any) => {
+  const res = await fetch(`${BASE_URL}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dados),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.erro || 'Falha ao realizar login');
   }
-  return response.json()
-}
+  return res.json();
+};
+
+export const cadastrarUsuario = async (dados: any) => {
+  const res = await fetch(`${BASE_URL}/cadastro`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dados),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.erro || 'Falha ao realizar cadastro');
+  }
+  return res.json();
+};

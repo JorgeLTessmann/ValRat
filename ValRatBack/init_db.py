@@ -8,6 +8,7 @@ from entities.ativo_master import AtivoMaster
 from entities.historico_ativo import HistoricoAtivo
 from entities.retirada import Retirada
 from entities.transacao import Transacao
+from entities.usuario import Usuario
 
 # Cria todas as tabelas com a estrutura mais recente
 Base.metadata.create_all(bind=engine)

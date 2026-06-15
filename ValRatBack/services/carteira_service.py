@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def cadastrar_compra_api(
+    usuario_id: int,  # ← Adicionado parâmetro para isolamento
     categoria,
     ticker,
     data_compra,
@@ -30,7 +31,7 @@ def cadastrar_compra_api(
     # RENDA FIXA
     # =========================
     if categoria == "fixa":
-        logger.info(f"📥 Iniciando cadastro de renda fixa: {ticker} - R${valor_investido}")
+        logger.info(f"📥 Iniciando cadastro de renda fixa para o usuário {usuario_id}: {ticker} - R${valor_investido}")
         db = SessionLocal()
         data_normalizada = normalizar_data_compra(data_compra)
         nome = ticker
@@ -40,6 +41,7 @@ def cadastrar_compra_api(
             valor_investido = 0.0
 
         nova_compra = Compra(
+            usuario_id=usuario_id,  # ← Vincula a compra ao usuário
             ticker=ticker.upper(),
             nome=nome,
             tipo="fixa",
@@ -63,6 +65,7 @@ def cadastrar_compra_api(
         logger.info(f"✅ Renda fixa salva no BD com ID: {nova_compra.id}")
 
         transacao = Transacao(
+            usuario_id=usuario_id,  # ← Vincula a transação ao usuário
             tipo="compra",
             ticker=ticker.upper(),
             quantidade=qtd,
@@ -77,7 +80,8 @@ def cadastrar_compra_api(
         logger.info(f"✅ Transação commitada para {ticker}")
         db.close()
 
-        invalidate_cache("portfolio_completo")
+        # Invalida apenas o cache deste usuário específico
+        invalidate_cache(f"portfolio_completo_{usuario_id}")
 
         return {
             "mensagem": "Compra cadastrada com sucesso",
@@ -87,7 +91,7 @@ def cadastrar_compra_api(
     # =========================
     # RENDA VARIÁVEL OU CRIPTO
     # =========================
-    logger.info(f"📥 Iniciando cadastro de {categoria}: {ticker} - {quantidade} un")
+    logger.info(f"📥 Iniciando cadastro de {categoria} para o usuário {usuario_id}: {ticker} - {quantidade} un")
     db = SessionLocal()
 
     ticker = ticker.strip().upper()
@@ -96,10 +100,8 @@ def cadastrar_compra_api(
     catalogo = buscar_ativo_catalogo(ticker)
     nome = catalogo.nome if catalogo else ticker
 
-    # Define o tipo de busca para preço
     tipo_busca = "cripto" if categoria == "cripto" else "acao"
 
-    # Busca o preço histórico na data da compra
     preco_compra = buscar_preco(tipo_busca, ticker, data_normalizada)
     logger.info(f"Preço encontrado: {preco_compra}")
     
@@ -115,6 +117,7 @@ def cadastrar_compra_api(
         valor_investido = quantidade * preco_compra
 
     nova_compra = Compra(
+        usuario_id=usuario_id,  # ← Vincula a compra ao usuário
         ticker=ticker,
         nome=nome,
         tipo=categoria,
@@ -137,6 +140,7 @@ def cadastrar_compra_api(
     logger.info(f"✅ Compra salva no BD com ID: {nova_compra.id}")
 
     transacao = Transacao(
+        usuario_id=usuario_id,  # ← Vincula a transação ao usuário
         tipo="compra",
         ticker=ticker,
         quantidade=quantidade,
@@ -151,8 +155,8 @@ def cadastrar_compra_api(
     logger.info(f"✅ Transação commitada para {ticker}")
     db.close()
 
-    invalidate_cache("portfolio_completo")
-    logger.info(f"✅ Cache invalidado")
+    invalidate_cache(f"portfolio_completo_{usuario_id}")
+    logger.info(f"✅ Cache do usuário {usuario_id} invalidado")
 
     return {
         "mensagem": "Compra cadastrada com sucesso",
@@ -162,32 +166,35 @@ def cadastrar_compra_api(
     }
 
 
-def remover_compra(compra_id: int):
-    """Remove uma compra pelo ID"""
+def remover_compra(compra_id: int, usuario_id: int):
+    """Remove uma compra pelo ID, validando se pertence ao usuário correto"""
     db = SessionLocal()
     
-    compra = db.query(Compra).filter(Compra.id == compra_id).first()
+    # CRÍTICO: Filtra pelo ID da compra E pelo ID do usuário proprietário
+    compra = db.query(Compra).filter(Compra.id == compra_id, Compra.usuario_id == usuario_id).first()
     
     if not compra:
         db.close()
-        return {"erro": "Compra não encontrada"}
+        return {"erro": "Compra não encontrada ou acesso não autorizado"}
     
     db.delete(compra)
     db.commit()
     db.close()
     
-    invalidate_cache("portfolio_completo")
+    invalidate_cache(f"portfolio_completo_{usuario_id}")
     
     return {"mensagem": "Compra removida com sucesso"}
 
 
-def retirar_valor(ticker, quantidade):
-    """Realiza retirada de um ativo (alíquota proporcional)"""
+def retirar_valor(usuario_id: int, ticker, quantidade):
+    """Realiza retirada de um ativo garantindo o isolamento da conta"""
     db = SessionLocal()
 
+    # CRÍTICO: Busca apenas as compras que pertencem ao usuário conectado
     compras = (
         db.query(Compra)
         .filter(
+            Compra.usuario_id == usuario_id,
             Compra.ticker == ticker,
             Compra.quantidade_restante > 0
         )
@@ -197,7 +204,7 @@ def retirar_valor(ticker, quantidade):
 
     if not compras:
         db.close()
-        return {"erro": "Ativo não encontrado"}
+        return {"erro": "Ativo não encontrado na carteira do usuário"}
 
     total_disponivel = sum(c.quantidade_restante for c in compras)
 
@@ -216,6 +223,7 @@ def retirar_valor(ticker, quantidade):
 
     valor_venda = quantidade * preco_atual
 
+    # Corrigida variável 'quantité' com caractere especial para 'quantidade' para evitar NameError
     for compra in compras:
         proporcao = compra.quantidade_restante / total_disponivel
         retirar = int(quantidade * proporcao)
@@ -224,7 +232,7 @@ def retirar_valor(ticker, quantidade):
         quantidade -= retirar
 
     for compra in compras:
-        if quantité <= 0:
+        if quantidade <= 0:
             break
         if compra.quantidade_restante > 0:
             retirar = min(quantidade, compra.quantidade_restante)
@@ -232,6 +240,7 @@ def retirar_valor(ticker, quantidade):
             quantidade -= retirar
 
     transacao = Transacao(
+        usuario_id=usuario_id,  # ← Vincula o histórico de venda ao usuário
         tipo="venda",
         ticker=ticker,
         quantidade=quantidade,
@@ -244,18 +253,19 @@ def retirar_valor(ticker, quantidade):
     db.commit()
     db.close()
 
-    invalidate_cache("portfolio_completo")
+    invalidate_cache(f"portfolio_completo_{usuario_id}")
 
     return {"mensagem": "Retirada realizada com sucesso"}
 
 
-def buscar_compras_por_ticker(ticker: str):
-    """Busca todas as compras de um ticker específico"""
+def buscar_compras_por_ticker(ticker: str, usuario_id: int):
+    """Busca todas as compras de um ticker específico de um usuário determinado"""
     db = SessionLocal()
     
+    # CRÍTICO: Filtrando pelo ticker e pelo usuario_id
     compras = (
         db.query(Compra)
-        .filter(Compra.ticker == ticker.upper())
+        .filter(Compra.ticker == ticker.upper(), Compra.usuario_id == usuario_id)
         .order_by(Compra.data_compra.desc())
         .all()
     )

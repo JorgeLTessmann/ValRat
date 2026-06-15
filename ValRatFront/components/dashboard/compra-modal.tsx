@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Info, Calendar, DollarSign, Tag, Building2, AlertCircle } from 'lucide-react'
+import { Plus, Info, Calendar, DollarSign, Tag, AlertCircle } from 'lucide-react'
+import { useAuth } from '@/hooks/use-auth' // <-- IMPORT ATUALIZADO
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -27,7 +28,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { Switch } from '@/components/ui/switch'
-import { cn } from '@/lib/utils'
 
 interface Props {
   open: boolean
@@ -40,6 +40,9 @@ function hojeISO() {
 }
 
 export function CompraModal({ open, onClose, onSuccess }: Props) {
+  // <-- USANDO SEU HOOK NATIVO AQUI
+  const { currentUser } = useAuth()
+
   // =========================
   // Estados comuns
   // =========================
@@ -119,7 +122,14 @@ export function CompraModal({ open, onClose, onSuccess }: Props) {
     setErro('')
     setSalvando(true)
 
-    // Validações comuns
+    const userEmail = currentUser?.email || (typeof currentUser === 'string' ? currentUser : null)
+
+    if (!userEmail) {
+      setErro('Usuário não identificado no sistema. Faça login novamente.')
+      setSalvando(false)
+      return
+    }
+
     if (!dataCompra) {
       setErro('Data da aplicação é obrigatória')
       setSalvando(false)
@@ -166,29 +176,31 @@ export function CompraModal({ open, onClose, onSuccess }: Props) {
       }
 
       const body = {
-        categoria: "Renda Fixa",                           // ← ADICIONADO
-        data_compra: dataCompra,                           // ← MUDOU (era data_aplicacao)
-        plataforma: plataforma || null,                    // ← ADICIONADO
-        nome_aplicacao: nomeAplicacao.trim(),              // ← OK
-        valor_investido: Number(valorAplicado),            // ← MUDOU (era valor_aplicado)
-        data_vencimento: dataVencimento,                   // ← OK
-        tipo_renda_fixa: tipoAtivo,                        // ← MUDOU (era tipo_ativo)
-        indexador: indexador,                              // ← OK
-        taxa_contratada: Number(taxaContratada),           // ← OK
-        tem_carencia: temCarencia,                         // ← OK
-        data_carencia: temCarencia ? dataCarencia : null,  // ← OK
+        categoria: "Renda Fixa",
+        data_compra: dataCompra,
+        plataforma: plataforma || null,
+        nome_aplicacao: nomeAplicacao.trim(),
+        valor_investido: Number(valorAplicado),
+        data_vencimento: dataVencimento,
+        tipo_renda_fixa: tipoAtivo,
+        indexador: indexador,
+        taxa_contratada: Number(taxaContratada),
+        tem_carencia: temCarencia,
+        data_carencia: temCarencia ? dataCarencia : null,
       }
-
 
       try {
         const response = await fetch('http://127.0.0.1:8000/renda-fixa', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Email': userEmail
+          },
           body: JSON.stringify(body),
         })
         const result = await response.json()
         if (!response.ok) throw new Error(result.erro || result.detail)
-        // Limpeza
+
         setNomeAplicacao('')
         setValorAplicado('')
         setDataVencimento('')
@@ -219,7 +231,7 @@ export function CompraModal({ open, onClose, onSuccess }: Props) {
       return
     }
 
-    const body: any = {
+    const body = {
       categoria,
       ticker: ticker.trim().toUpperCase(),
       data_compra: dataCompra,
@@ -230,12 +242,15 @@ export function CompraModal({ open, onClose, onSuccess }: Props) {
     try {
       const response = await fetch('http://127.0.0.1:8000/compras', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Email': userEmail
+        },
         body: JSON.stringify(body),
       })
       const result = await response.json()
       if (!response.ok) throw new Error(result.erro || result.detail)
-      // Limpeza
+
       setTicker('')
       setQuantidade(1)
       onSuccess()
@@ -263,7 +278,6 @@ export function CompraModal({ open, onClose, onSuccess }: Props) {
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Categoria */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Categoria</Label>
             <Select value={categoria} onValueChange={(value: string) => setCategoria(value as 'variavel' | 'fixa' | 'cripto')}>
@@ -278,7 +292,6 @@ export function CompraModal({ open, onClose, onSuccess }: Props) {
             </Select>
           </div>
 
-          {/* ========== CAMPOS RENDA VARIÁVEL / CRIPTO ========== */}
           {!isRendaFixa && (
             <>
               <div className="space-y-1.5">
@@ -304,7 +317,6 @@ export function CompraModal({ open, onClose, onSuccess }: Props) {
             </>
           )}
 
-          {/* ========== CAMPOS RENDA FIXA ========== */}
           {isRendaFixa && (
             <>
               <div className="space-y-1.5">
@@ -470,7 +482,6 @@ export function CompraModal({ open, onClose, onSuccess }: Props) {
             </>
           )}
 
-          {/* Data da aplicação para variável/cripto já foi colocada; para fixa já incluímos, então não repetir */}
           {!isRendaFixa && (
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Data da aplicação</Label>
@@ -478,7 +489,6 @@ export function CompraModal({ open, onClose, onSuccess }: Props) {
             </div>
           )}
 
-          {/* Plataforma (comum) */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Plataforma</Label>
             <Select value={plataforma} onValueChange={setPlataforma}>

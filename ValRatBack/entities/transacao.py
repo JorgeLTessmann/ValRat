@@ -1,6 +1,6 @@
 # entities/transacao.py
 
-from sqlalchemy import Column, Integer, String, Float, DateTime
+from sqlalchemy import Column, Integer, ForeignKey, String, Float, DateTime
 from database import Base
 from datetime import datetime
 
@@ -16,3 +16,4 @@ class Transacao(Base):
     valor = Column(Float, nullable=False)
     data = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="success")  # 'success', 'pending', 'failed'
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)

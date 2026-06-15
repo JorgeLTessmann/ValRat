@@ -1,6 +1,6 @@
 # entities/compra.py
 
-from sqlalchemy import Column, Integer, String, Float, Boolean, Date
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey
 from database import Base
 
 
@@ -8,8 +8,12 @@ class Compra(Base):
     __tablename__ = "compras"
 
     id = Column(Integer, primary_key=True, index=True)
+    # Adicionado: Vincula a compra ao usuário dono dela
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    
     ticker = Column(String)
     nome = Column(String)
+    type = Column(String)  # Se 'tipo' estava como String embaixo, mantive a estrutura
     tipo = Column(String)
     categoria = Column(String, nullable=True)  # 'variavel', 'fixa', 'cripto'
     
