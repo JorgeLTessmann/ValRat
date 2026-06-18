@@ -85,7 +85,11 @@ def _get(url: str, params: dict = None, timeout: int = 8) -> Optional[requests.R
             )
 
     except requests.RequestException as exc:
-        print(f"[NETWORK ERROR] {url} | {exc}")
+        err_msg = str(exc)
+        if "NameResolutionError" in err_msg or "Failed to resolve" in err_msg:
+            print(f"[DNS ERROR] Não foi possível resolver o host para: {url}")
+        else:
+            print(f"[NETWORK ERROR] {url} | {exc}")
 
     return None
 
@@ -219,24 +223,53 @@ def _preco_historico_coincap(symbol: str, data_str: str) -> Optional[float]:
     return None
 
 
-def _preco_historico_messari(symbol: str, data_str: str) -> Optional[float]:
-    """Messari free tier — preço de FECHAMENTO. Dados desde 2011, sem geo-block."""
+def _preco_historico_coinbase(symbol: str, data_str: str) -> Optional[float]:
+    """Coinbase Exchange candles — preço de FECHAMENTO. Dados desde ~2016."""
     data_limpa = _normalizar_data(data_str)
-    data_fim = (datetime.strptime(data_limpa, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-    slug = COINGECKO_MAP.get(symbol.upper(), symbol.lower())
+    start = f"{data_limpa}T00:00:00"
+    try:
+        dt = datetime.strptime(data_limpa, "%Y-%m-%d")
+        end = (dt + timedelta(days=1)).strftime("%Y-%m-%d") + "T00:00:00"
+    except Exception as exc:
+        logger.warning("[Coinbase Cripto] Erro data %s: %s", data_str, exc)
+        return None
 
+    pair = f"{symbol.upper()}-USD"
     res = _get(
-        f"https://data.messari.io/api/v1/assets/{slug}/metrics/price/time-series",
-        {"start": data_limpa, "end": data_fim, "interval": "1d"},
-        timeout=10,
+        f"https://api.exchange.coinbase.com/products/{pair}/candles",
+        {"start": start, "end": end, "granularity": 86400},
     )
     if res:
-        values = res.json().get("data", {}).get("values", [])
-        logger.info("[Messari] values retornados: %s", values)
-        for v in values:
-            # v = [timestamp_ms, open, high, low, close, volume]
-            if len(v) >= 5 and v[4] and float(v[4]) > 0:
-                return float(v[4])  # close
+        try:
+            candles = res.json()
+            if isinstance(candles, list) and len(candles) > 0:
+                for c in candles:
+                    if len(c) >= 5 and float(c[4]) > 0:
+                        return float(c[4])
+        except Exception as exc:
+            logger.warning("[Coinbase Cripto] Erro processar JSON para %s: %s", symbol, exc)
+    return None
+
+
+def _preco_historico_yahoo(symbol: str, data_str: str) -> Optional[float]:
+    """Yahoo Finance (yfinance) — preço de FECHAMENTO. Dados desde ~2014."""
+    try:
+        import yfinance as yf
+        ticker_crypto = f"{symbol.upper()}-USD"
+        data_fim = datetime.strptime(_normalizar_data(data_str), "%Y-%m-%d")
+        data_ini = data_fim - timedelta(days=5)
+        
+        ticker_obj = yf.Ticker(ticker_crypto)
+        hist = ticker_obj.history(start=data_ini, end=data_fim + timedelta(days=1))
+        if not hist.empty:
+            for dt, row in hist.iterrows():
+                if dt.date() == data_fim.date() and float(row['Close']) > 0:
+                    return float(row['Close'])
+            valid_rows = hist[hist['Close'] > 0]
+            if not valid_rows.empty:
+                return float(valid_rows['Close'].iloc[-1])
+    except Exception as exc:
+        logger.warning("[Yahoo Cripto] Erro para %s em %s: %s", symbol, data_str, exc)
     return None
 
 
@@ -284,14 +317,15 @@ def _preco_historico_coingecko(symbol: str, data_str: str) -> Optional[float]:
 def buscar_preco_historico_cripto(symbol: str, data_str: str) -> Optional[float]:
     """
     Preço de FECHAMENTO histórico em USD para uma data específica.
-    Cadeia: CryptoCompare → CoinCap → Messari → Kraken → CoinGecko.
+    Cadeia: CryptoCompare → CoinCap → Coinbase Exchange → Yahoo Finance → Kraken → CoinGecko.
     Retorna None se nenhuma fonte retornar valor (sem valores inventados).
     """
     logger.info("[INICIO] buscar_preco_historico_cripto(%s, %s)", symbol, data_str)
     for fonte in (
         _preco_historico_cryptocompare,
         _preco_historico_coincap,
-        _preco_historico_messari,
+        _preco_historico_coinbase,
+        _preco_historico_yahoo,
         _preco_historico_kraken,
         _preco_historico_coingecko,
     ):
@@ -363,6 +397,36 @@ def _historico_periodo_coincap(symbol: str, data_inicio: str, data_fim: str) -> 
     return []
 
 
+def _historico_periodo_yahoo(symbol: str, data_inicio: str, data_fim: str) -> list:
+    """Yahoo Finance bulk — para gráficos. Dados desde ~2014."""
+    try:
+        import yfinance as yf
+        ticker_crypto = f"{symbol.upper()}-USD"
+        dt_ini = datetime.strptime(_normalizar_data(data_inicio), "%Y-%m-%d")
+        dt_fim = datetime.strptime(_normalizar_data(data_fim), "%Y-%m-%d")
+        
+        ticker_obj = yf.Ticker(ticker_crypto)
+        hist = ticker_obj.history(start=dt_ini, end=dt_fim + timedelta(days=1))
+        
+        resultado = []
+        for dt, row in hist.iterrows():
+            close_val = float(row["Close"])
+            if close_val > 0:
+                resultado.append({
+                    "date": dt.strftime("%Y-%m-%d"),
+                    "open": float(row["Open"]),
+                    "high": float(row["High"]),
+                    "low": float(row["Low"]),
+                    "close": close_val,
+                    "volume": float(row["Volume"]),
+                })
+        return resultado
+    except Exception as exc:
+        logger.warning("[Yahoo Cripto Periodo] Erro para %s [%s→%s]: %s",
+                       symbol, data_inicio, data_fim, exc)
+    return []
+
+
 def _historico_periodo_kraken(symbol: str, data_inicio: str, data_fim: str) -> list:
     pair = KRAKEN_MAP.get(symbol.upper(), f"{symbol.upper()}USD")
     ts_ini = _ts_inicio(data_inicio)
@@ -394,9 +458,14 @@ def _historico_periodo_kraken(symbol: str, data_inicio: str, data_fim: str) -> l
 
 
 def buscar_historico_cripto_periodo(symbol: str, data_inicio: str, data_fim: str) -> list:
-    """Histórico de preços para gráficos. Cadeia: CryptoCompare → CoinCap → Kraken.
+    """Histórico de preços para gráficos. Cadeia: CryptoCompare → CoinCap → Yahoo Finance → Kraken.
     Retorna lista de dicts com open/high/low/close/volume por dia."""
-    for fonte in (_historico_periodo_cryptocompare, _historico_periodo_coincap, _historico_periodo_kraken):
+    for fonte in (
+        _historico_periodo_cryptocompare,
+        _historico_periodo_coincap,
+        _historico_periodo_yahoo,
+        _historico_periodo_kraken
+    ):
         try:
             resultado = fonte(symbol, data_inicio, data_fim)
             if resultado:
