@@ -2,15 +2,28 @@ import requests
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-BASE_URL = "https://api1.binance.com/api/v3"
+BASE_URL = "https://api1.binance.com/api/v3"  # Usando o subdomínio alternativo
+
+def _buscar_preco_coinbase(symbol: str) -> Optional[float]:
+    """Fallback caso a Binance bloqueie o IP do Render."""
+    try:
+        res = requests.get(f"https://api.coinbase.com/v2/prices/{symbol.upper()}-USD/spot", timeout=5)
+        return float(res.json()["data"]["amount"]) if res.status_code == 200 else None
+    except:
+        return None
 
 def buscar_preco_atual_cripto(symbol: str) -> Optional[float]:
     try:
         res = requests.get(f"{BASE_URL}/ticker/price", params={"symbol": f"{symbol.upper()}USDT"}, timeout=10)
-        return float(res.json().get("price", 0)) if res.status_code == 200 else None
+        if res.status_code == 200:
+            return float(res.json().get("price", 0))
+        
+        # Se der erro 418 ou qualquer outro na Binance, tenta a Coinbase
+        print(f"⚠️ Binance falhou ({res.status_code}). Tentando Fallback Coinbase para {symbol}...")
+        return _buscar_preco_coinbase(symbol)
     except Exception as e:
-        print(f"❌ Erro preço atual {symbol}: {e}")
-        return None
+        print(f"❌ Erro preço atual Binance {symbol}: {e}. Tentando Coinbase...")
+        return _buscar_preco_coinbase(symbol)
 
 def buscar_preco_historico_cripto(symbol: str, data_str: str) -> Optional[float]:
     try:
