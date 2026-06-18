@@ -182,8 +182,10 @@ async def post_compras(compra: CompraModel, x_user_email: Optional[str] = Header
         return resultado
 
     except Exception as e:
-        print(f"❌ [ERRO CRÍTICO EM COMPRAS]: {str(e)}")
+        import traceback
+        print(f"❌ [ERRO CRÍTICO]:\n{traceback.format_exc()}")  # ← MUDA ISSO
         raise HTTPException(status_code=400, detail=f"Erro interno no processamento: {str(e)}")
+
 
 
 @app.delete("/compras/{id}")

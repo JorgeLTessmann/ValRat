@@ -27,6 +27,7 @@ def cadastrar_compra_api(
     indexador=None,
     data_vencimento=None
 ):
+    print(f"[DEBUG CARTEIRA] categoria={categoria} ticker={ticker} data_compra={data_compra} type={type(data_compra)}")
     # =========================
     # RENDA FIXA
     # =========================
