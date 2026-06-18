@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Any
 
 BASE_URL = "https://api1.binance.com/api/v3"
 
-# Mapeamento obrigatório para o CoinGecko entender o ticker
+# Mapeamento obrigatório para o CoinGecko localizar o ativo pelo ID correto
 COINGECKO_MAP = {
     "BTC": "bitcoin",
     "ETH": "ethereum",
@@ -16,7 +16,7 @@ COINGECKO_MAP = {
 }
 
 def _buscar_preco_coinbase_atual(symbol: str) -> Optional[float]:
-    """Fallback secundário apenas para PREÇO ATUAL se a Binance cair no Render."""
+    """Fallback secundário apenas para PREÇO ATUAL se a Binance falhar no Render."""
     try:
         res = requests.get(f"https://api.coinbase.com/v2/prices/{symbol.upper()}-USD/spot", timeout=5)
         if res.status_code == 200:
@@ -38,13 +38,13 @@ def buscar_preco_atual_cripto(symbol: str) -> Optional[float]:
 
 def buscar_preco_historico_cripto(symbol: str, data_str: str) -> Optional[float]:
     """
-    Busca o preço histórico usando a API pública do CoinGecko (histórico completo desde 2013).
-    Evita o erro 400 no backend pois sempre retorna um valor estimado do dia.
+    Busca o preço histórico usando a API pública do CoinGecko (histórico desde 2013).
+    Evita o erro 400 pois valida a estrutura antes de retornar.
     """
     try:
         coin_id = COINGECKO_MAP.get(symbol.upper(), symbol.lower())
         
-        # Converte "YYYY-MM-DD" para "DD-MM-YYYY" que é o formato exigido pelo CoinGecko
+        # Converte "YYYY-MM-DD" para "DD-MM-YYYY" (formato exigido pelo CoinGecko)
         dt = datetime.strptime(data_str, "%Y-%m-%d")
         data_formatada = dt.strftime("%d-%m-%Y")
         
@@ -55,7 +55,7 @@ def buscar_preco_historico_cripto(symbol: str, data_str: str) -> Optional[float]
         
         if res.status_code == 200:
             dados = res.json()
-            # Extrai o preço em USD de dentro da estrutura do CoinGecko
+            # Garante que as chaves existem na resposta para não quebrar o código
             if "market_data" in dados and "current_price" in dados["market_data"]:
                 return float(dados["market_data"]["current_price"].get("usd", 0))
         
