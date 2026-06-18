@@ -2,7 +2,7 @@ import requests
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-BASE_URL = "https://api.binance.com/api/v3"
+BASE_URL = "https://api1.binance.com/api/v3"
 
 def buscar_preco_atual_cripto(symbol: str) -> Optional[float]:
     try:
