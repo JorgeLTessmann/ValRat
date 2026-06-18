@@ -135,18 +135,27 @@ def buscar_preco_atual_cripto(symbol: str) -> Optional[float]:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _preco_historico_cryptocompare(symbol: str, data_str: str) -> Optional[float]:
-    """CryptoCompare histoday: retorna OHLCV diário — usa 'close' como preço do dia."""
-    ts = _data_para_timestamp(data_str)
+    """CryptoCompare histoday: retorna OHLCV diário — usa 'close' como preço do dia.
+
+    ATENÇÃO: toTs deve ser o início do DIA SEGUINTE, não do dia solicitado.
+    Com toTs = início do dia solicitado (00:00 UTC), o CryptoCompare retorna
+    apenas os candles ANTERIORES a esse momento, pulando o dia desejado.
+    """
+    data_limpa = _normalizar_data(data_str)
+    dt_alvo = datetime.strptime(data_limpa, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    ts_alvo = int(dt_alvo.timestamp())
+    # toTs = início do dia SEGUINTE → garante que o dia solicitado seja incluído
+    ts_to = int((dt_alvo + timedelta(days=1)).timestamp())
+
     res = _get(
         "https://min-api.cryptocompare.com/data/v2/histoday",
-        {"fsym": symbol.upper(), "tsym": "USD", "limit": 1, "toTs": ts},
+        {"fsym": symbol.upper(), "tsym": "USD", "limit": 1, "toTs": ts_to},
     )
     if res:
         data = res.json()
         candles = data.get("Data", {}).get("Data", [])
-        # Filtra candle cujo 'time' bate com o timestamp do dia solicitado
         for c in candles:
-            diff = abs(c.get("time", 0) - ts)
+            diff = abs(c.get("time", 0) - ts_alvo)
             if diff < 86400 and c.get("close", 0) > 0:
                 return float(c["close"])
     return None
@@ -174,7 +183,50 @@ def _preco_historico_kraken(symbol: str, data_str: str) -> Optional[float]:
     return None
 
 
-def _preco_historico_coingecko(symbol: str, data_str: str) -> Optional[float]:
+def _preco_historico_coincap(symbol: str, data_str: str) -> Optional[float]:
+    """CoinCap v2: tem dados históricos de BTC desde 2013, sem geo-block em EU."""
+    data_limpa = _normalizar_data(data_str)
+    dt = datetime.strptime(data_limpa, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    # CoinCap usa milissegundos
+    start_ms = int(dt.timestamp()) * 1000
+    end_ms = int((dt + timedelta(days=1)).timestamp()) * 1000
+
+    coin_id = COINGECKO_MAP.get(symbol.upper(), symbol.lower())  # coincap usa os mesmos IDs
+    res = _get(
+        f"https://api.coincap.io/v2/assets/{coin_id}/history",
+        {"interval": "d1", "start": start_ms, "end": end_ms},
+        timeout=10,
+    )
+    if res:
+        pontos = res.json().get("data", [])
+        for p in pontos:
+            preco = float(p.get("priceUsd", 0))
+            if preco > 0:
+                return preco
+    return None
+
+
+def _preco_historico_messari(symbol: str, data_str: str) -> Optional[float]:
+    """Messari free tier: dados históricos profundos (desde 2011 para BTC), sem geo-block."""
+    data_limpa = _normalizar_data(data_str)
+    # Messari aceita YYYY-MM-DD diretamente nos parâmetros start e end
+    dt = datetime.strptime(data_limpa, "%Y-%m-%d")
+    data_fim = (dt + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # Messari usa o slug do ativo (mesmo do CoinGecko para os principais)
+    slug = COINGECKO_MAP.get(symbol.upper(), symbol.lower())
+    res = _get(
+        f"https://data.messari.io/api/v1/assets/{slug}/metrics/price/time-series",
+        {"start": data_limpa, "end": data_fim, "interval": "1d"},
+        timeout=10,
+    )
+    if res:
+        values = res.json().get("data", {}).get("values", [])
+        for v in values:
+            # v = [timestamp_ms, open, high, low, close, volume]
+            if len(v) >= 5 and v[4] and float(v[4]) > 0:
+                return float(v[4])  # close
+    return None
     """CoinGecko como último recurso (rate limit severo em IPs de cloud)."""
     coin_id = COINGECKO_MAP.get(symbol.upper(), symbol.lower())
     data_limpa = _normalizar_data(data_str)
@@ -196,12 +248,21 @@ def _preco_historico_coingecko(symbol: str, data_str: str) -> Optional[float]:
 def buscar_preco_historico_cripto(symbol: str, data_str: str) -> Optional[float]:
     """
     Busca o preço histórico REAL de uma cripto em USD para uma data específica.
-    Cadeia: CryptoCompare → Kraken OHLC → CoinGecko.
+    Cadeia: CryptoCompare → CoinCap → Messari → Kraken OHLC → CoinGecko.
+    - CryptoCompare: dados desde 2010, sem geo-block
+    - CoinCap: dados desde 2013, sem geo-block em EU
+    - Messari: dados desde 2011, sem geo-block
+    - Kraken: dados desde ~2014
+    - CoinGecko: último recurso (rate limit severo em IPs de cloud)
     Retorna None se nenhuma fonte retornar valor (sem valores inventados).
     """
-    for fonte in (_preco_historico_cryptocompare,
-                  _preco_historico_kraken,
-                  _preco_historico_coingecko):
+    for fonte in (
+        _preco_historico_cryptocompare,
+        _preco_historico_coincap,
+        _preco_historico_messari,
+        _preco_historico_kraken,
+        _preco_historico_coingecko,
+    ):
         try:
             preco = fonte(symbol, data_str)
             if preco and preco > 0:
@@ -218,13 +279,16 @@ def buscar_preco_historico_cripto(symbol: str, data_str: str) -> Optional[float]
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _historico_periodo_cryptocompare(symbol: str, data_inicio: str, data_fim: str) -> list:
-    ts_fim = _data_para_timestamp(data_fim)
     ts_ini = _data_para_timestamp(data_inicio)
+    # toTs = início do dia SEGUINTE ao fim → inclui o último dia do intervalo
+    dt_fim = datetime.strptime(_normalizar_data(data_fim), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    ts_to = int((dt_fim + timedelta(days=1)).timestamp())
+    ts_fim = int(dt_fim.timestamp())
     dias = max(1, (ts_fim - ts_ini) // 86400)
 
     res = _get(
         "https://min-api.cryptocompare.com/data/v2/histoday",
-        {"fsym": symbol.upper(), "tsym": "USD", "limit": dias, "toTs": ts_fim},
+        {"fsym": symbol.upper(), "tsym": "USD", "limit": dias, "toTs": ts_to},
     )
     if res:
         candles = res.json().get("Data", {}).get("Data", [])
@@ -239,6 +303,32 @@ def _historico_periodo_cryptocompare(symbol: str, data_inicio: str, data_fim: st
                     "low": float(c["low"]),
                     "close": float(c["close"]),
                     "volume": float(c.get("volumeto", 0)),
+                })
+        return resultado
+    return []
+
+
+def _historico_periodo_coincap(symbol: str, data_inicio: str, data_fim: str) -> list:
+    """CoinCap bulk histórico — funciona para dados muito antigos (desde 2013)."""
+    coin_id = COINGECKO_MAP.get(symbol.upper(), symbol.lower())
+    ts_ini = _data_para_timestamp(data_inicio)
+    dt_fim = datetime.strptime(_normalizar_data(data_fim), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    ts_fim = int((dt_fim + timedelta(days=1)).timestamp())
+
+    res = _get(
+        f"https://api.coincap.io/v2/assets/{coin_id}/history",
+        {"interval": "d1", "start": ts_ini * 1000, "end": ts_fim * 1000},
+        timeout=12,
+    )
+    if res:
+        resultado = []
+        for p in res.json().get("data", []):
+            preco = float(p.get("priceUsd", 0))
+            ts = int(p.get("time", 0)) // 1000
+            if preco > 0 and ts_ini <= ts <= ts_fim:
+                resultado.append({
+                    "date": datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d"),
+                    "open": preco, "high": preco, "low": preco, "close": preco, "volume": 0.0,
                 })
         return resultado
     return []
@@ -276,10 +366,10 @@ def _historico_periodo_kraken(symbol: str, data_inicio: str, data_fim: str) -> l
 
 def buscar_historico_cripto_periodo(symbol: str, data_inicio: str, data_fim: str) -> list:
     """Busca intervalo de preços reais históricos para gráficos.
-    Cadeia: CryptoCompare histoday → Kraken OHLC.
+    Cadeia: CryptoCompare histoday → CoinCap → Kraken OHLC.
     Retorna lista de dicts com open/high/low/close/volume por dia.
     """
-    for fonte in (_historico_periodo_cryptocompare, _historico_periodo_kraken):
+    for fonte in (_historico_periodo_cryptocompare, _historico_periodo_coincap, _historico_periodo_kraken):
         try:
             resultado = fonte(symbol, data_inicio, data_fim)
             if resultado:
