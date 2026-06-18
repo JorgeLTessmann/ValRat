@@ -42,15 +42,14 @@ _HEADERS = {
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _get(url: str, params: dict = None, timeout: int = 8) -> Optional[requests.Response]:
-    """GET com headers padrão, logging de falhas e sem raise."""
     try:
         res = requests.get(url, params=params, headers=_HEADERS, timeout=timeout)
-        logger.info("[HTTP] %s %s → %s", res.status_code, url, str(params or ""))
+        print(f"[HTTP] {res.status_code} {url} params={params}")
         if res.status_code == 200:
             return res
-        logger.warning("[HTTP %s] %s | body: %s", res.status_code, url, res.text[:200])
+        print(f"[HTTP ERRO] {res.status_code} body={res.text[:200]}")
     except requests.RequestException as exc:
-        logger.warning("[NETWORK ERROR] %s | %s", url, exc)
+        print(f"[NETWORK ERROR] {url} | {exc}")
     return None
 
 

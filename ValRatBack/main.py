@@ -1,3 +1,7 @@
+import logging
+logging.basicConfig(level=logging.INFO, force=True)
+
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
