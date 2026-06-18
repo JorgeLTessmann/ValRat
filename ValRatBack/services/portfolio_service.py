@@ -71,8 +71,10 @@ def montar_portfolio(usuario_id: int, force_refresh: bool = False):
     historico_formatado = []
     for item in historico:
         historico_formatado.append({
-            "date": item.data.strftime("%Y-%m-%d"),
-            "value": round(item.patrimonio, 2)
+            "date": item.data.strftime("%Y-%m-%d") if hasattr(item.data, "strftime") else str(item.data).split(" ")[0],
+            "value": round(item.patrimonio, 2) if item.patrimonio is not None else 0.0,
+            "investido": round(item.investido, 2) if item.investido is not None else 0.0,
+            "lucro": round(item.lucro, 2) if item.lucro is not None else 0.0
         })
 
     # comparativo = gerar_comparativo(historico_formatado)

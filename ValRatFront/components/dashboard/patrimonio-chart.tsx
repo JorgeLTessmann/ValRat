@@ -30,53 +30,65 @@ interface Props {
 }
 
 export function PatrimonioChart({ historico }: Props) {
-  // 1. FORMATADORES CORRIGIDOS (Evita travamentos de re-render)
-  const formatCurrency = (value: number) => {
+  
+  // 1. GARANTE A ORDENAÇÃO CRONOLÓGICA (Resolve o sumiço dos dados de 2020)
+  const dadosOrdenados = useMemo(() => {
+    if (!historico || historico.length === 0) return []
+
+    // Faz uma cópia do array e ordena do mais antigo (2020) para o mais recente (2026)
+    return [...historico].sort((a, b) => {
+      const dataA = new Date(a.date).getTime()
+      const dataB = new Date(b.date).getTime()
+      return dataA - dataB
+    })
+  }, [historico])
+
+  // 2. FORMATADOR PARA PERCENTUAL (%)
+  const formatPercentage = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      maximumFractionDigits: 0
-    }).format(value)
+      style: 'percent',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value / 100)
   }
 
-  // 2. CÁLCULO DINÂMICO DE LIMITES (Evita que o gráfico comece do zero e fique achatado)
+  // 3. CÁLCULO DINÂMICO DE LIMITES (Baseado nos dados já ordenados)
   const chartBounds = useMemo(() => {
-    if (!historico || historico.length === 0) return { min: 0, max: 10000 }
+    if (dadosOrdenados.length === 0) return { min: 80, max: 120 }
     
     let allValues: number[] = []
-    historico.forEach(item => {
+    dadosOrdenados.forEach(item => {
       if (typeof item.carteira === 'number') allValues.push(item.carteira)
       if (typeof item.cdi === 'number') allValues.push(item.cdi)
       if (typeof item.ibov === 'number') allValues.push(item.ibov)
     })
 
-    if (allValues.length === 0) return { min: 0, max: 10000 }
+    if (allValues.length === 0) return { min: 80, max: 120 }
 
     const min = Math.min(...allValues)
     const max = Math.max(...allValues)
     
-    // Margem de folga de 5% para o gráfico respirar no topo e no fundo
-    const padding = (max - min) * 0.05 || 1000
+    // Margem de folga de 5% para o gráfico respirar
+    const padding = (max - min) * 0.05 || 5
     
     return {
-      min: Math.max(0, Math.floor(min - padding)), // não deixa o patrimônio ser menor que zero
+      min: Math.floor(min - padding), 
       max: Math.ceil(max + padding)
     }
-  }, [historico])
+  }, [dadosOrdenados])
 
   return (
     <Card className="border-border/60 shadow-sm bg-card transition-all duration-200">
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
-          Performance da Carteira
+          Performance da Carteira (Base Retroativa)
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-[400px] w-full pt-4">
           <ResponsiveContainer width="100%" height="100%">
-            {/* dynamicId fix: adicionado syncId se você quiser sincronizar com outros gráficos futuramente */}
             <LineChart 
-              data={historico} 
+              data={dadosOrdenados} // Consumindo os dados tratados e ordenados
               margin={{ top: 10, right: 20, left: 15, bottom: 5 }}
             >
               <CartesianGrid
@@ -100,18 +112,16 @@ export function PatrimonioChart({ historico }: Props) {
                 tickLine={false}
                 dx={-10}
                 stroke="currentColor"
-                // Aplica o cálculo inteligente de limites calculado no useMemo
                 domain={[chartBounds.min, chartBounds.max]}
-                tickFormatter={(value) => `R$ ${Math.round(value).toLocaleString('pt-BR')}`}
+                tickFormatter={(value) => `${Math.round(value)}%`}
                 tick={{ fill: 'var(--muted-foreground)', fontSize: 11, opacity: 0.8 }}
-                width={80}
+                width={60}
               />
               
               <Tooltip
                 cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '4 4' }}
-                // Tratamento correto de múltiplos payloads no array do Recharts
                 shared={true}
-                formatter={(value) => [formatCurrency(Number(value)), '']}
+                formatter={(value) => [formatPercentage(Number(value)), '']}
                 contentStyle={{
                   borderRadius: 'var(--radius, 8px)',
                   border: '1px solid var(--border)',
@@ -144,7 +154,7 @@ export function PatrimonioChart({ historico }: Props) {
                 }}
               />
               
-              {/* connectNulls={true} garante que furos no histórico não quebrem a linha */}
+              {/* Linha Principal: Carteira */}
               <Line
                 type="monotone"
                 dataKey="carteira"
@@ -160,6 +170,7 @@ export function PatrimonioChart({ historico }: Props) {
                 }}
               />
               
+              {/* Linha de Benchmark: CDI */}
               <Line
                 type="monotone"
                 dataKey="cdi"
@@ -172,6 +183,7 @@ export function PatrimonioChart({ historico }: Props) {
                 activeDot={{ r: 4 }}
               />
               
+              {/* Linha de Benchmark: Ibovespa */}
               <Line
                 type="monotone"
                 dataKey="ibov"

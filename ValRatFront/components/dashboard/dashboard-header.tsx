@@ -27,7 +27,30 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
     return 'Boa noite'
   }
 
-  // Lógica dinâmica para verificar o status de funcionamento da B3
+useEffect(() => {
+    const userEmail = currentUser?.email || (typeof currentUser === 'string' ? currentUser : null)
+    
+    if (!userEmail) return
+
+    const sincronizarHistoricoBackend = async () => {
+      try {
+        // Alterado para GET e simplificado para evitar o erro 422
+        await fetch('http://localhost:8000/historico/sincronizar', {
+          method: 'GET',
+          headers: {
+            'X-User-Email': userEmail
+          }
+        })
+        console.log('[HISTÓRICO] Comando de sincronização inteligente enviado ao backend.')
+      } catch (error) {
+        console.error('[HISTÓRICO ERRO] Falha ao acionar sincronização automática:', error)
+      }
+    }
+
+    sincronizarHistoricoBackend()
+  }, [currentUser])
+
+  // LÓGICA 2: Verificação dinâmica do status de funcionamento da B3
   useEffect(() => {
     const checkMarketStatus = () => {
       const now = new Date()

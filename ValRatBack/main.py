@@ -16,6 +16,7 @@ from entities.renda_fixa import RendaFixa
 from entities.historico_patrimonio import HistoricoPatrimonio
 from entities.historico_ativo import HistoricoAtivo
 from entities.usuario import Usuario
+from fastapi import FastAPI, Header, HTTPException, Depends, BackgroundTasks
 
 from models.compra_model import CompraModel
 from models.renda_fixa_model import RendaFixaModel
@@ -90,7 +91,7 @@ class LoginModel(BaseModel):
 
 
 # =========================
-# DEPENDÊNCIA DO BANCO DE DADOS
+# DEPENDÊNCIA DO BANCO DE DADOS 
 # =========================
 
 def get_db():
@@ -175,7 +176,10 @@ async def post_compras(compra: CompraModel, x_user_email: Optional[str] = Header
         quantidade=compra.quantidade,
         plataforma=compra.plataforma
     )
-    
+
+    if "erro" in resultado:
+        raise HTTPException(status_code=400, detail=resultado["erro"])
+
     return resultado
 
 
@@ -228,18 +232,27 @@ async def get_historico(x_user_email: Optional[str] = Header(None), db: Session 
     
     historico = db.query(HistoricoPatrimonio)\
                   .filter(HistoricoPatrimonio.usuario_id == usuario.id)\
-                  .order_by(HistoricoPatrimonio.id.asc()).all()
+                  .order_by(HistoricoPatrimonio.data.asc()).all()
     
-    resultado = []
+    historico_formatado = []
     for item in historico:
-        resultado.append({
-            "id": item.id,
-            "data": item.data,
-            "patrimonio": item.patrimonio,
-            "investido": item.investido,
-            "lucro": item.lucro
+        historico_formatado.append({
+            "date": item.data.strftime("%Y-%m-%d") if hasattr(item.data, "strftime") else str(item.data).split(" ")[0],
+            "value": round(item.patrimonio, 2) if item.patrimonio is not None else 0.0
         })
-    return resultado
+    
+    from services.analytics.comparison_service import gerar_comparativo
+    comparativo = gerar_comparativo(historico_formatado)
+    
+    if comparativo and len(historico_formatado) > 0:
+        valor_inicial = historico_formatado[0]["value"]
+        if valor_inicial > 0:
+            for item in comparativo:
+                item["carteira"] = round((item["carteira"] / valor_inicial) * 100, 2)
+                item["cdi"] = round((item["cdi"] / valor_inicial) * 100, 2)
+                item["ibov"] = round((item["ibov"] / valor_inicial) * 100, 2)
+                
+    return comparativo
 
 
 @app.get("/benchmark")
@@ -316,3 +329,19 @@ async def login_usuario(dados: LoginModel, db: Session = Depends(get_db)):
     if not usuario:
         return ORJSONResponse(status_code=401, content={"erro": "Credenciais inválidas"})
     return {"id": usuario.id, "nome": usuario.nome, "email": usuario.email}
+
+@app.get("/historico/sincronizar")
+async def sincronizar_historico(
+    background_tasks: BackgroundTasks, 
+    x_user_email: Optional[str] = Header(None), 
+    db: Session = Depends(get_db)
+):
+
+    usuario = obtener_usuario_por_email(db, x_user_email)
+    
+    from popular_historico import processar_usuario_historico
+    
+    # Adiciona a tarefa pesada na fila do FastAPI
+    background_tasks.add_task(processar_usuario_historico, usuario.id)
+    
+    return {"status": "Sincronização histórica iniciada com sucesso em segundo plano."}

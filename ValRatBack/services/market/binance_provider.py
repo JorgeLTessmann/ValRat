@@ -1,7 +1,7 @@
 # services/market/binance_provider.py
 
 import requests
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional
 
 BASE_URL = "https://api.binance.com/api/v3"
@@ -45,10 +45,9 @@ def buscar_preco_historico_cripto(symbol: str, data_str: str) -> Optional[float]
         Preço de fechamento (último preço do dia)
     """
     try:
-        data_busca = datetime.strptime(data_str, "%Y-%m-%d")
+        # Binance usa candles diários abertos à meia-noite UTC
+        data_busca = datetime.strptime(data_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         data_inicio = int(data_busca.timestamp() * 1000)
-        
-        # Para o dia seguinte (busca candles do dia)
         data_fim = int((data_busca + timedelta(days=1)).timestamp() * 1000)
         
         url = f"{BASE_URL}/klines"
@@ -113,3 +112,53 @@ def buscar_historico_cripto_periodo(symbol: str, data_inicio: str, data_fim: str
     except Exception as e:
         print(f"❌ Erro ao buscar histórico de {symbol}: {e}")
         return []
+
+
+def buscar_preco_atual_cripto_brl(symbol: str) -> Optional[float]:
+    """
+    Busca o preço atual da criptomoeda em BRL.
+    Busca o preço em USDT na Binance e converte com a taxa de câmbio atual.
+
+    Args:
+        symbol: 'BTC', 'ETH', 'SOL', etc.
+
+    Returns:
+        Preço em BRL (float) ou None em caso de erro.
+    """
+    from services.market.exchange_service import buscar_taxa_cambio_atual
+
+    preco_usdt = buscar_preco_atual_cripto(symbol)
+    if preco_usdt is None:
+        return None
+
+    taxa_cambio = buscar_taxa_cambio_atual()
+    preco_brl = preco_usdt * taxa_cambio
+
+    print(f"[CRIPTO BRL] {symbol}: ${preco_usdt:.2f} USDT * {taxa_cambio:.4f} = R$ {preco_brl:.2f}")
+    return round(preco_brl, 2)
+
+
+def buscar_preco_historico_cripto_brl(symbol: str, data_str: str) -> Optional[float]:
+    """
+    Busca o preço histórico da criptomoeda em BRL para uma data específica.
+    Combina a cotação histórica em USDT da Binance com a taxa de câmbio histórica.
+
+    Args:
+        symbol: 'BTC', 'ETH', etc.
+        data_str: Data no formato YYYY-MM-DD
+
+    Returns:
+        Preço em BRL (float) ou None em caso de erro.
+    """
+    from services.market.exchange_service import buscar_taxa_cambio_usd_brl
+
+    preco_usdt = buscar_preco_historico_cripto(symbol, data_str)
+    if preco_usdt is None:
+        return None
+
+    data = datetime.strptime(data_str, "%Y-%m-%d").date()
+    taxa_cambio = buscar_taxa_cambio_usd_brl(data)
+
+    preco_brl = preco_usdt * taxa_cambio
+    print(f"[CRIPTO HIST BRL] {symbol} em {data_str}: ${preco_usdt:.2f} USDT * {taxa_cambio:.4f} = R$ {preco_brl:.2f}")
+    return round(preco_brl, 2)

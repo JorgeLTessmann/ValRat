@@ -12,7 +12,12 @@ interface WalletCardProps {
   totalBalance: number
   profitLoss: number
   percentChange: number
-  historicalData: { date: string; value: number }[]
+  historicalData: { 
+    date: string; 
+    value: number;
+    investido?: number;
+    lucro?: number;
+  }[]
   isLoading?: boolean
 }
 
@@ -24,7 +29,7 @@ export function WalletCard({
   isLoading
 }: WalletCardProps) {
   const [isVisible, setIsVisible] = useState(true)
-  const [timeframe, setTimeframe] = useState<'1D' | '1W' | '1M' | '1Y' | 'ALL'>('1M')
+  const [timeframe, setTimeframe] = useState<'3M' | '6M' | '1Y' | 'ALL'>('ALL')
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -42,17 +47,13 @@ export function WalletCard({
     let startDate: Date
 
     switch (timeframe) {
-      case '1D':
+      case '3M':
         startDate = new Date(now)
-        startDate.setDate(startDate.getDate() - 1)
+        startDate.setMonth(startDate.getMonth() - 3)
         break
-      case '1W':
+      case '6M':
         startDate = new Date(now)
-        startDate.setDate(startDate.getDate() - 7)
-        break
-      case '1M':
-        startDate = new Date(now)
-        startDate.setMonth(startDate.getMonth() - 1)
+        startDate.setMonth(startDate.getMonth() - 6)
         break
       case '1Y':
         startDate = new Date(now)
@@ -140,7 +141,7 @@ export function WalletCard({
 
         {/* Container de Períodos Refatorado estilo ToggleGroup */}
         <div className="flex gap-1 mb-6 bg-muted/50 p-1 rounded-lg w-fit border border-border/40">
-          {(['1D', '1W', '1M', '1Y', 'ALL'] as const).map((tf) => (
+          {(['3M', '6M', '1Y', 'ALL'] as const).map((tf) => (
             <Button
               key={tf}
               variant="ghost"

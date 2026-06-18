@@ -59,7 +59,12 @@ export interface PortfolioData {
   assets: Asset[]
   transactions: Transaction[]
   allocations: PortfolioAllocation[]
-  historicalData: { date: string; value: number }[]
+  historicalData: { 
+    date: string; 
+    value: number;
+    investido?: number;
+    lucro?: number;
+  }[]
   comparisonData: { date: string; carteira: number; cdi: number; ibov: number }[]
 }
 
