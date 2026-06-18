@@ -35,7 +35,7 @@ useEffect(() => {
     const sincronizarHistoricoBackend = async () => {
       try {
         // Alterado para GET e simplificado para evitar o erro 422
-        await fetch('http://localhost:8000/historico/sincronizar', {
+        await fetch('https://valrat.onrender.com/historico/sincronizar', {
           method: 'GET',
           headers: {
             'X-User-Email': userEmail

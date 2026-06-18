@@ -116,49 +116,54 @@ def buscar_historico_cripto_periodo(symbol: str, data_inicio: str, data_fim: str
 
 def buscar_preco_atual_cripto_brl(symbol: str) -> Optional[float]:
     """
-    Busca o preço atual da criptomoeda em BRL.
-    Busca o preço em USDT na Binance e converte com a taxa de câmbio atual.
-
-    Args:
-        symbol: 'BTC', 'ETH', 'SOL', etc.
-
-    Returns:
-        Preço em BRL (float) ou None em caso de erro.
+    Busca o preço atual da criptomoeda em BRL com proteção contra erros.
     """
     from services.market.exchange_service import buscar_taxa_cambio_atual
 
-    preco_usdt = buscar_preco_atual_cripto(symbol)
-    if preco_usdt is None:
+    try:
+        preco_usdt = buscar_preco_atual_cripto(symbol)
+        if preco_usdt is None:
+            return None
+
+        taxa_cambio = buscar_taxa_cambio_atual()
+        
+        # Proteção contra retorno nulo do câmbio
+        if taxa_cambio is None:
+            print(f"❌ Não foi possível obter a taxa de câmbio atual para {symbol}")
+            return None
+
+        preco_brl = preco_usdt * taxa_cambio
+        print(f"[CRIPTO BRL] {symbol}: ${preco_usdt:.2f} USDT * {taxa_cambio:.4f} = R$ {preco_brl:.2f}")
+        return round(preco_brl, 2)
+        
+    except Exception as e:
+        print(f"❌ Erro na conversão atual de BRL para {symbol}: {e}")
         return None
-
-    taxa_cambio = buscar_taxa_cambio_atual()
-    preco_brl = preco_usdt * taxa_cambio
-
-    print(f"[CRIPTO BRL] {symbol}: ${preco_usdt:.2f} USDT * {taxa_cambio:.4f} = R$ {preco_brl:.2f}")
-    return round(preco_brl, 2)
 
 
 def buscar_preco_historico_cripto_brl(symbol: str, data_str: str) -> Optional[float]:
     """
-    Busca o preço histórico da criptomoeda em BRL para uma data específica.
-    Combina a cotação histórica em USDT da Binance com a taxa de câmbio histórica.
-
-    Args:
-        symbol: 'BTC', 'ETH', etc.
-        data_str: Data no formato YYYY-MM-DD
-
-    Returns:
-        Preço em BRL (float) ou None em caso de erro.
+    Busca o preço histórico da criptomoeda em BRL com proteção contra erros.
     """
     from services.market.exchange_service import buscar_taxa_cambio_usd_brl
 
-    preco_usdt = buscar_preco_historico_cripto(symbol, data_str)
-    if preco_usdt is None:
+    try:
+        preco_usdt = buscar_preco_historico_cripto(symbol, data_str)
+        if preco_usdt is None:
+            return None
+
+        data = datetime.strptime(data_str, "%Y-%m-%d").date()
+        taxa_cambio = buscar_taxa_cambio_usd_brl(data)
+
+        # Proteção contra retorno nulo do câmbio histórico (ex: finais de semana)
+        if taxa_cambio is None:
+            print(f"❌ Não foi possível obter a taxa de câmbio histórica em {data_str} para {symbol}")
+            return None
+
+        preco_brl = preco_usdt * taxa_cambio
+        print(f"[CRIPTO HIST BRL] {symbol} em {data_str}: ${preco_usdt:.2f} USDT * {taxa_cambio:.4f} = R$ {preco_brl:.2f}")
+        return round(preco_brl, 2)
+        
+    except Exception as e:
+        print(f"❌ Erro na conversão histórica de BRL para {symbol} em {data_str}: {e}")
         return None
-
-    data = datetime.strptime(data_str, "%Y-%m-%d").date()
-    taxa_cambio = buscar_taxa_cambio_usd_brl(data)
-
-    preco_brl = preco_usdt * taxa_cambio
-    print(f"[CRIPTO HIST BRL] {symbol} em {data_str}: ${preco_usdt:.2f} USDT * {taxa_cambio:.4f} = R$ {preco_brl:.2f}")
-    return round(preco_brl, 2)

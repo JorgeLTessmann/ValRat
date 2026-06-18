@@ -107,7 +107,7 @@ export function RetiradaModal({
             setSalvando(true)
 
             const response = await fetch(
-                'http://127.0.0.1:8000/retiradas',
+                'https://valrat.onrender.com/retiradas',
                 {
                     method: 'POST',
 

@@ -190,7 +190,7 @@ export function CompraModal({ open, onClose, onSuccess }: Props) {
       }
 
       try {
-        const response = await fetch('http://127.0.0.1:8000/renda-fixa', {
+        const response = await fetch('https://valrat.onrender.com/renda-fixa', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -240,7 +240,7 @@ export function CompraModal({ open, onClose, onSuccess }: Props) {
     }
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/compras', {
+      const response = await fetch('https://valrat.onrender.com/compras', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

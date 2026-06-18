@@ -1,4 +1,4 @@
-const BASE_URL = 'http://127.0.0.1:8000';
+const BASE_URL = 'https://valrat.onrender.com';
 
 // Função auxiliar para garantir que a URL não tenha barras duplicadas por acidente
 const buildUrl = (endpoint: string): string => {
