@@ -55,7 +55,6 @@ def _get(url: str, params: dict = None, timeout: int = 8) -> Optional[requests.R
 
 
 def _normalizar_data(data_str) -> str:
-
     if isinstance(data_str, datetime_module.date):  # datetime herda de date, cobre ambos
         return data_str.strftime("%Y-%m-%d")
     return str(data_str).split("T")[0]

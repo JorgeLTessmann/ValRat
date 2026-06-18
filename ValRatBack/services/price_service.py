@@ -124,15 +124,16 @@ def buscar_preco(
     codigo: str,
     data: Optional[str] = None
 ) -> Optional[float]:
-    # CRIPTOMOEDAS (Binance + conversão USD -> BRL)
     if tipo == "cripto":
         try:
             from services.market.binance_provider import (
                 buscar_preco_atual_cripto_brl,
                 buscar_preco_historico_cripto_brl
             )
+            print(f"[DEBUG CRIPTO] tipo={tipo} codigo={codigo} data={data} data_type={type(data)}")
             if data:
                 preco = buscar_preco_historico_cripto_brl(codigo, data)
+                print(f"[DEBUG CRIPTO] preco retornado={preco}")
                 if preco is None:
                     data_busca = datetime.strptime(data, "%Y-%m-%d").date()
                     if data_busca >= date.today():
@@ -140,7 +141,9 @@ def buscar_preco(
                 return preco
             return buscar_preco_atual_cripto_brl(codigo)
         except Exception as e:
-            print(f"❌ Erro no provedor cripto: {e}")
+            print(f"[DEBUG CRIPTO] EXCEPTION: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     if tipo in ["acao", "etf", "fii"]:
