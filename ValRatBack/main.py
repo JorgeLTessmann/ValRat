@@ -160,27 +160,30 @@ async def get_carteira(x_user_email: Optional[str] = Header(None), db: Session =
 
 @app.post("/compras")
 async def post_compras(compra: CompraModel, x_user_email: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    # Linha de debug para ver o que está vindo do front-end
-    print(f"\n[DEBUG] O cabeçalho X-User-Email veio como: '{x_user_email}'\n")
+    print(f"\n[DEBUG] Email: '{x_user_email}' | Dados recebidos: {compra.dict()}\n")
     
     usuario = obtener_usuario_por_email(db, x_user_email)
-    
     if not usuario:
         raise HTTPException(status_code=401, detail="Usuário não encontrado")
     
-    resultado = cadastrar_compra_api(
-        usuario_id=usuario.id,
-        categoria=compra.categoria,
-        ticker=compra.ticker,
-        data_compra=compra.data_compra,
-        quantidade=compra.quantidade,
-        plataforma=compra.plataforma
-    )
+    try:
+        resultado = cadastrar_compra_api(
+            usuario_id=usuario.id,
+            categoria=compra.categoria,
+            ticker=compra.ticker,
+            data_compra=compra.data_compra,
+            quantidade=compra.quantidade,
+            plataforma=compra.plataforma
+        )
+        
+        if "erro" in resultado:
+            raise HTTPException(status_code=400, detail=resultado["erro"])
+            
+        return resultado
 
-    if "erro" in resultado:
-        raise HTTPException(status_code=400, detail=resultado["erro"])
-
-    return resultado
+    except Exception as e:
+        print(f"❌ [ERRO CRÍTICO EM COMPRAS]: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Erro interno no processamento: {str(e)}")
 
 
 @app.delete("/compras/{id}")
