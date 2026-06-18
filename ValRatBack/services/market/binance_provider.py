@@ -3,6 +3,9 @@ import requests
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 import logging
+import os
+import requests
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +46,47 @@ _HEADERS = {
 
 def _get(url: str, params: dict = None, timeout: int = 8) -> Optional[requests.Response]:
     try:
-        res = requests.get(url, params=params, headers=_HEADERS, timeout=timeout)
+        headers = _HEADERS.copy()
+
+        # Adiciona API Key do CryptoCompare apenas para chamadas dele
+        if "cryptocompare.com" in url:
+            api_key = os.getenv("CRYPTOCOMPARE_API_KEY")
+            if api_key:
+                headers["authorization"] = f"Apikey {api_key}"
+
+        res = requests.get(
+            url,
+            params=params,
+            headers=headers,
+            timeout=timeout
+        )
+
         print(f"[HTTP] {res.status_code} {url} params={params}")
+
         if res.status_code == 200:
             return res
-        print(f"[HTTP ERRO] {res.status_code} body={res.text[:200]}")
+
+        if res.status_code == 401:
+            print(
+                f"[AUTH ERROR] {url} retornou 401. "
+                f"Verifique a API Key."
+            )
+
+        elif res.status_code == 429:
+            print(
+                f"[RATE LIMIT] {url} retornou 429. "
+                f"Limite de requisições atingido."
+            )
+
+        else:
+            print(
+                f"[HTTP ERRO] {res.status_code} "
+                f"body={res.text[:500]}"
+            )
+
     except requests.RequestException as exc:
         print(f"[NETWORK ERROR] {url} | {exc}")
+
     return None
 
 
