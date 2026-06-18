@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, TrendingUp, TrendingDown, Eye, MoreHorizontal, ArrowUpDown } from 'lucide-react'
+import { Search, TrendingUp, TrendingDown, Eye, MoreHorizontal, ArrowUpDown, Calendar } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -58,14 +58,14 @@ export function HoldingsTable({ assets, onViewDetails }: HoldingsTableProps) {
   }
 
   const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    })
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
 
-  const formatPercent = (value: number) => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+  // Formata YYYY-MM-DD para DD/MM/AAAA
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-'
+    const [year, month, day] = dateString.split('-')
+    return `${day}/${month}/${year}`
   }
 
   const filteredAndSortedAssets = [...assets]
@@ -78,18 +78,8 @@ export function HoldingsTable({ assets, onViewDetails }: HoldingsTableProps) {
     .sort((a, b) => {
       const aValue = a[sortField] ?? 0
       const bValue = b[sortField] ?? 0
-      if (sortDirection === 'asc') {
-        return aValue > bValue ? 1 : -1
-      } else {
-        return aValue < bValue ? 1 : -1
-      }
+      return sortDirection === 'asc' ? (aValue > bValue ? 1 : -1) : (aValue < bValue ? 1 : -1)
     })
-
-  const getProfitLossColor = (value: number) => {
-    if (value > 0) return 'text-emerald-500'
-    if (value < 0) return 'text-rose-500'
-    return 'text-muted-foreground'
-  }
 
   return (
     <div className="space-y-4">
@@ -105,121 +95,75 @@ export function HoldingsTable({ assets, onViewDetails }: HoldingsTableProps) {
         </div>
       </div>
 
-      <div className="rounded-lg border border-border">
+      <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-[100px]">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 font-medium -ml-2"
-                  onClick={() => handleSort('ticker')}
-                >
-                  Código
-                  <ArrowUpDown className="ml-1 h-3 w-3" />
+                <Button variant="ghost" size="sm" className="h-8 px-2 font-medium -ml-2" onClick={() => handleSort('ticker')}>
+                  Código <ArrowUpDown className="ml-1 h-3 w-3" />
                 </Button>
               </TableHead>
               <TableHead>Ativo</TableHead>
+              <TableHead>
+                <Button variant="ghost" size="sm" className="h-8 px-2 font-medium -ml-2" onClick={() => handleSort('data_compra')}>
+                  Data <ArrowUpDown className="ml-1 h-3 w-3" />
+                </Button>
+              </TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead className="text-right">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 font-medium -ml-2 ml-auto"
-                  onClick={() => handleSort('totalInvested')}
-                >
-                  Investido
-                  <ArrowUpDown className="ml-1 h-3 w-3" />
+                <Button variant="ghost" size="sm" className="h-8 px-2 font-medium ml-auto" onClick={() => handleSort('totalInvested')}>
+                  Investido <ArrowUpDown className="ml-1 h-3 w-3" />
                 </Button>
               </TableHead>
               <TableHead className="text-right">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 font-medium -ml-2 ml-auto"
-                  onClick={() => handleSort('currentValue')}
-                >
-                  Valor Atual
-                  <ArrowUpDown className="ml-1 h-3 w-3" />
+                <Button variant="ghost" size="sm" className="h-8 px-2 font-medium ml-auto" onClick={() => handleSort('currentValue')}>
+                  Valor Atual <ArrowUpDown className="ml-1 h-3 w-3" />
                 </Button>
               </TableHead>
-              <TableHead className="text-right">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 font-medium -ml-2 ml-auto"
-                  onClick={() => handleSort('profitLoss')}
-                >
-                  Resultado
-                  <ArrowUpDown className="ml-1 h-3 w-3" />
-                </Button>
-              </TableHead>
+              <TableHead className="text-right">Resultado</TableHead>
               <TableHead className="text-right">%</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredAndSortedAssets.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                  Nenhum ativo encontrado
+            {filteredAndSortedAssets.map((asset) => (
+              <TableRow key={asset.id} className="group">
+                <TableCell className="font-mono font-medium">{asset.ticker || '-'}</TableCell>
+                <TableCell>
+                  <div className="font-medium text-xs sm:text-sm">{asset.name || asset.ticker || 'Sem nome'}</div>
+                  {asset.plataforma && <div className="text-[10px] text-muted-foreground uppercase">{asset.plataforma}</div>}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                  {formatDate(asset.data_compra || '')}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="font-normal text-[10px] uppercase">
+                    {asset.type_label || asset.type}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right font-mono text-xs">{formatCurrency(asset.totalInvested)}</TableCell>
+                <TableCell className="text-right font-mono text-xs">{formatCurrency(asset.currentValue)}</TableCell>
+                <TableCell className={cn("text-right font-mono font-medium text-xs", asset.profitLoss > 0 ? 'text-emerald-500' : 'text-rose-500')}>
+                  {asset.profitLoss >= 0 ? '+' : ''}{formatCurrency(asset.profitLoss)}
+                </TableCell>
+                <TableCell className={cn("text-right font-mono text-xs", asset.percentChange > 0 ? 'text-emerald-500' : 'text-rose-500')}>
+                  {asset.percentChange >= 0 ? '+' : ''}{asset.percentChange.toFixed(2)}%
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onViewDetails?.(asset)}>
+                        <Eye className="mr-2 h-4 w-4" /> Ver detalhes
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ) : (
-              filteredAndSortedAssets.map((asset) => (
-                <TableRow key={asset.id} className="group">
-                  <TableCell className="font-mono font-medium">
-                    {asset.ticker || '-'}
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <div className="font-medium">{asset.name || asset.ticker || 'Sem nome'}</div>
-                      {asset.plataforma && (
-                        <div className="text-xs text-muted-foreground">{asset.plataforma}</div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-normal">
-                      {asset.type_label || asset.type || 'Renda Fixa'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatCurrency(asset.totalInvested)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatCurrency(asset.currentValue)}
-                  </TableCell>
-                  <TableCell className={cn("text-right font-mono font-medium", getProfitLossColor(asset.profitLoss))}>
-                    {asset.profitLoss >= 0 ? '+' : ''}{formatCurrency(asset.profitLoss)}
-                    {asset.profitLoss !== 0 && (
-                      <span className="ml-1 text-xs">
-                        {asset.profitLoss > 0 ? <TrendingUp className="inline h-3 w-3" /> : <TrendingDown className="inline h-3 w-3" />}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className={cn("text-right font-mono", getProfitLossColor(asset.percentChange))}>
-                    {formatPercent(asset.percentChange)}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onViewDetails?.(asset)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Ver detalhes
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            ))}
           </TableBody>
         </Table>
       </div>

@@ -23,7 +23,6 @@ import {
 import { CompraModal } from '@/components/dashboard/compra-modal'
 import { RendimentoModal } from '@/components/dashboard/rendimento-modal'
 import { RetiradaModal } from '@/components/dashboard/retirada-modal'
-import { PatrimonioChart } from '@/components/dashboard/patrimonio-chart'
 import { BenchmarkCard } from '@/components/dashboard/benchmark-card'
 import { useAuth } from '@/hooks/use-auth'
 import {
@@ -66,7 +65,7 @@ export default function DashboardPage() {
   const [resumoLoading, setResumoLoading] = useState(true)
 
   // =========================================================================
-  // CORREÇÃO DOS HOOKS SWR: PASSANDO A URL CORRETA E O E-MAIL COMO ARGUMENTOS
+  // HOOKS SWR: PASSANDO A URL CORRETA E O E-MAIL COMO ARGUMENTOS
   // =========================================================================
 
   const { data: portfolio, isLoading: portfolioLoading, mutate } = useSWR(
@@ -96,14 +95,13 @@ export default function DashboardPage() {
       revalidateOnFocus: false
     }
   )
+
   useEffect(() => {
-    // Trava de segurança: só dispara se o usuário e o e-mail existirem
     if (!isAuthenticated || !currentUser || !currentUser.email) return;
 
     const loadResumo = async () => {
       setResumoLoading(true);
       try {
-        // Passando o endpoint da rota rápida e o e-mail do usuário logado
         const data = await fetchPortfolioResumo('/carteira/rapida', currentUser.email);
         setResumoData(data);
       } catch (error) {
@@ -307,7 +305,7 @@ export default function DashboardPage() {
                 <span className="font-bold text-foreground">Rat</span>
                 <span>© 2026</span>
               </div>
-              <p className="text-center sm:text-right">Dados de mercado podem ter atraso. Não é recomendação de investimento.</p>
+              <p className="text-center sm:text-right">Dados de mercado podem ter atraso. Não é recomendação de investmento.</p>
             </div>
           </footer>
         </div>
@@ -341,7 +339,6 @@ export default function DashboardPage() {
               historicalData={portfolio?.historicalData ?? []}
               isLoading={false}
             />
-            <PatrimonioChart historico={historico ?? []} />
           </div>
 
           <div className="lg:col-span-1 space-y-6">
