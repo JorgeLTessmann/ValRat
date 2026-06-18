@@ -1,3 +1,4 @@
+import datetime as datetime_module
 import requests
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -53,20 +54,22 @@ def _get(url: str, params: dict = None, timeout: int = 8) -> Optional[requests.R
     return None
 
 
-def _normalizar_data(data_str: str) -> str:
-    """Garante formato YYYY-MM-DD a partir de qualquer string de data."""
-    return data_str.split("T")[0]
+def _normalizar_data(data_str) -> str:
+
+    if isinstance(data_str, datetime_module.date):  # datetime herda de date, cobre ambos
+        return data_str.strftime("%Y-%m-%d")
+    return str(data_str).split("T")[0]
 
 
-def _ts_inicio(data_str: str) -> int:
+def _ts_inicio(data_str) -> int:
     """Retorna o Unix timestamp (UTC) do início do dia (00:00:00)."""
     data_limpa = _normalizar_data(data_str)
     dt = datetime.strptime(data_limpa, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     return int(dt.timestamp())
 
 
-def _ts_fim(data_str: str) -> int:
-    """Retorna o Unix timestamp (UTC) do início do dia SEGUINTE (para uso como limite exclusivo)."""
+def _ts_fim(data_str) -> int:
+    """Retorna o Unix timestamp (UTC) do início do dia SEGUINTE (limite exclusivo)."""
     data_limpa = _normalizar_data(data_str)
     dt = datetime.strptime(data_limpa, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     return int((dt + timedelta(days=1)).timestamp())
