@@ -273,6 +273,29 @@ def _preco_historico_yahoo(symbol: str, data_str: str) -> Optional[float]:
     return None
 
 
+def _preco_historico_bitstamp(symbol: str, data_str: str) -> Optional[float]:
+    """Bitstamp public OHLC API — preço de FECHAMENTO. Dados desde ~2011."""
+    ts_alvo = _ts_inicio(data_str)
+    res = _get(
+        f"https://www.bitstamp.net/api/v2/ohlc/{symbol.lower()}usd/",
+        {"step": 86400, "start": ts_alvo - 86400, "end": ts_alvo + 86400 * 2, "limit": 10},
+    )
+    if res:
+        try:
+            ohlc = res.json().get("data", {}).get("ohlc", [])
+            for c in ohlc:
+                if int(c.get("timestamp", 0)) == ts_alvo and float(c.get("close", 0)) > 0:
+                    return float(c["close"])
+            # Fallback tolerante a fuso
+            for c in ohlc:
+                diff = abs(int(c.get("timestamp", 0)) - ts_alvo)
+                if diff < 86400 and float(c.get("close", 0)) > 0:
+                    return float(c["close"])
+        except Exception as exc:
+            logger.warning("[Bitstamp Cripto] Erro processar JSON para %s: %s", symbol, exc)
+    return None
+
+
 def _preco_historico_kraken(symbol: str, data_str: str) -> Optional[float]:
     """Kraken OHLC diário — preço de FECHAMENTO. Dados desde ~2014."""
     pair = KRAKEN_MAP.get(symbol.upper(), f"{symbol.upper()}USD")
@@ -324,6 +347,7 @@ def buscar_preco_historico_cripto(symbol: str, data_str: str) -> Optional[float]
     for fonte in (
         _preco_historico_cryptocompare,
         _preco_historico_coincap,
+        _preco_historico_bitstamp,
         _preco_historico_coinbase,
         _preco_historico_yahoo,
         _preco_historico_kraken,
@@ -427,6 +451,36 @@ def _historico_periodo_yahoo(symbol: str, data_inicio: str, data_fim: str) -> li
     return []
 
 
+def _historico_periodo_bitstamp(symbol: str, data_inicio: str, data_fim: str) -> list:
+    """Bitstamp public OHLC API bulk — para gráficos. Dados desde ~2011."""
+    ts_ini = _ts_inicio(data_inicio)
+    ts_fim = _ts_fim(data_fim)
+    res = _get(
+        f"https://www.bitstamp.net/api/v2/ohlc/{symbol.lower()}usd/",
+        {"step": 86400, "start": ts_ini, "end": ts_fim, "limit": 1000},
+    )
+    if res:
+        try:
+            ohlc = res.json().get("data", {}).get("ohlc", [])
+            resultado = []
+            for c in ohlc:
+                ts = int(c.get("timestamp", 0))
+                if ts_ini <= ts <= ts_fim:
+                    resultado.append({
+                        "date": datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d"),
+                        "open": float(c["open"]),
+                        "high": float(c["high"]),
+                        "low": float(c["low"]),
+                        "close": float(c["close"]),
+                        "volume": float(c.get("volume", 0)),
+                    })
+            return resultado
+        except Exception as exc:
+            logger.warning("[Bitstamp Cripto Periodo] Erro para %s [%s→%s]: %s",
+                           symbol, data_inicio, data_fim, exc)
+    return []
+
+
 def _historico_periodo_kraken(symbol: str, data_inicio: str, data_fim: str) -> list:
     pair = KRAKEN_MAP.get(symbol.upper(), f"{symbol.upper()}USD")
     ts_ini = _ts_inicio(data_inicio)
@@ -463,6 +517,7 @@ def buscar_historico_cripto_periodo(symbol: str, data_inicio: str, data_fim: str
     for fonte in (
         _historico_periodo_cryptocompare,
         _historico_periodo_coincap,
+        _historico_periodo_bitstamp,
         _historico_periodo_yahoo,
         _historico_periodo_kraken
     ):
