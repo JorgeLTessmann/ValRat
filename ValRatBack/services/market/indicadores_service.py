@@ -1,8 +1,8 @@
 # services/market/indicadores_service.py
 
 """
-Serviço para busca de indicadores macroeconômicos históricos (CDI, SELIC, IPCA).
-Usa BRAPI (macro endpoint) que tem dados desde 1986.
+Serviço para busca de indicadores macroeconômicos históricos e atuais (CDI, SELIC, IPCA).
+Usa BRAPI (macro endpoint) como motor principal e BrasilAPI como fallback rápido.
 """
 
 import os
@@ -15,7 +15,6 @@ load_dotenv()
 
 TOKEN = os.getenv("TOKEN_BRAPI")
 
-# Base URL da BRAPI para indicadores
 BASE_URL = "https://brapi.dev/api/v2/macro"
 
 
@@ -81,19 +80,16 @@ def buscar_cdi_por_data(data: date) -> Optional[float]:
     Retorna valor em decimal (ex: 0.105 para 10.5%).
     """
     data_str = data.strftime("%Y-%m-%d")
-    
-    # Busca 30 dias antes para garantir que tenha dado
     data_inicio = (data - timedelta(days=30)).strftime("%Y-%m-%d")
     
     resultados = _buscar_indicador("cdi", data_inicio, data_str)
     
     if resultados:
         for item in resultados:
-            # Verifica se é a série diária ou acumulada no período
             if item.get("date") == data_str:
                 valor = item.get("value")
                 if valor is not None:
-                    return valor / 100  # converte percentual para decimal
+                    return valor / 100
     
     return None
 
@@ -105,7 +101,6 @@ def buscar_cdi_mensal(ano: int, mes: int) -> Optional[float]:
     """
     data_inicio = f"{ano}-{mes:02d}-01"
     
-    # Último dia do mês
     if mes == 12:
         data_fim = f"{ano}-12-31"
     else:
@@ -115,7 +110,6 @@ def buscar_cdi_mensal(ano: int, mes: int) -> Optional[float]:
     resultados = _buscar_indicador("cdi", data_inicio, data_fim)
     
     if resultados:
-        # Pega o último valor do mês (acumulado)
         ultimo = resultados[-1]
         valor = ultimo.get("value")
         if valor is not None:
@@ -215,12 +209,10 @@ def buscar_cdi_periodo(data_inicio: date, data_fim: date) -> Dict[str, float]:
         taxa = buscar_cdi_mensal(ano, mes)
         
         if taxa is None:
-            # Fallback: taxa conservadora (0,85% ao mês)
-            taxa = 0.0085
+            taxa = 0.0085 
         
         taxas[chave] = taxa
         
-        # Próximo mês
         if mes == 12:
             mes = 1
             ano += 1
@@ -244,12 +236,10 @@ def buscar_ipca_periodo(data_inicio: date, data_fim: date) -> Dict[str, float]:
         taxa = buscar_ipca_mensal(ano, mes)
         
         if taxa is None:
-            # Fallback: IPCA conservador (0,4% ao mês)
             taxa = 0.004
         
         taxas[chave] = taxa
         
-        # Próximo mês
         if mes == 12:
             mes = 1
             ano += 1
@@ -260,37 +250,40 @@ def buscar_ipca_periodo(data_inicio: date, data_fim: date) -> Dict[str, float]:
 
 
 # =========================
-# VALOR ATUAL (FALLBACK RÁPIDO)
+# VALOR ATUAL (FALLBACK BRASILAPI)
 # =========================
 
 def get_cdi_atual() -> Optional[float]:
-    """
-    Retorna a taxa CDI mais recente (para fallback).
-    """
-    from services.market.brasilapi_service import buscar_taxa_cdi
-    taxa = buscar_taxa_cdi()
-    if taxa:
-        return taxa / 100
+    """Retorna a taxa CDI mais recente buscando direto na BrasilAPI."""
+    try:
+        res = requests.get("https://brasilapi.com.br/api/taxas/v1/cdi", timeout=5)
+        if res.status_code == 200:
+            return float(res.json().get("valor", 0)) / 100
+    except Exception as e:
+        print(f"⚠️ Falha no fallback BrasilAPI (CDI): {e}")
     return None
 
 
 def get_selic_atual() -> Optional[float]:
-    """
-    Retorna a taxa SELIC mais recente (para fallback).
-    """
-    from services.market.brasilapi_service import buscar_taxa_selic
-    taxa = buscar_taxa_selic()
-    if taxa:
-        return taxa / 100
+    """Retorna a taxa SELIC mais recente buscando direto na BrasilAPI."""
+    try:
+        res = requests.get("https://brasilapi.com.br/api/taxas/v1/selic", timeout=5)
+        if res.status_code == 200:
+            return float(res.json().get("valor", 0)) / 100
+    except Exception as e:
+        print(f"⚠️ Falha no fallback BrasilAPI (SELIC): {e}")
     return None
 
 
 def get_ipca_atual() -> Optional[float]:
-    """
-    Retorna a taxa IPCA mais recente (para fallback).
-    """
-    from services.market.brasilapi_service import buscar_taxa_ipca
-    taxa = buscar_taxa_ipca()
-    if taxa:
-        return taxa / 100
+    """Tenta aproximar a última taxa IPCA via BRAPI."""
+    try:
+        # Usa o histórico do IPCA recente como proxy para o valor corrente
+        hoje = date.today()
+        inicio = (hoje - timedelta(days=60)).strftime("%Y-%m-%d")
+        resultados = _buscar_indicador("ipca", inicio)
+        if resultados:
+            return float(resultados[-1].get("value", 0)) / 100
+    except:
+        pass
     return None

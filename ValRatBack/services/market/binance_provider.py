@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 # MAPEAMENTOS
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Mapeamento oficial para o CoinGecko localizar o ativo preciso
 COINGECKO_MAP = {
     "BTC": "bitcoin",
     "ETH": "ethereum",
@@ -24,7 +23,6 @@ COINGECKO_MAP = {
     "SOL": "solana",
 }
 
-# Mapeamento para Kraken (usa símbolos próprios)
 KRAKEN_MAP = {
     "BTC": "XBTUSD",
     "ETH": "ETHUSD",
@@ -48,7 +46,6 @@ def _get(url: str, params: dict = None, timeout: int = 8) -> Optional[requests.R
     try:
         headers = _HEADERS.copy()
 
-        # Adiciona API Key do CryptoCompare apenas para chamadas dele
         if "cryptocompare.com" in url:
             api_key = os.getenv("CRYPTOCOMPARE_API_KEY")
             if api_key:
@@ -95,7 +92,7 @@ def _get(url: str, params: dict = None, timeout: int = 8) -> Optional[requests.R
 
 
 def _normalizar_data(data_str) -> str:
-    if isinstance(data_str, datetime_module.date):  # datetime herda de date, cobre ambos
+    if isinstance(data_str, datetime_module.date): 
         return data_str.strftime("%Y-%m-%d")
     return str(data_str).split("T")[0]
 
@@ -176,17 +173,11 @@ def buscar_preco_atual_cripto(symbol: str) -> Optional[float]:
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PREÇO HISTÓRICO PONTUAL
-# Cadeia: CryptoCompare → CoinCap → Messari → Kraken → CoinGecko
-#
-# NOTA SOBRE toTs no CryptoCompare:
-#   toTs = início do dia SOLICITADO (00:00 UTC) retorna candles do dia ANTERIOR.
-#   toTs = início do dia SEGUINTE (00:00 UTC do dia+1) retorna o dia correto.
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _preco_historico_cryptocompare(symbol: str, data_str: str) -> Optional[float]:
-    """CryptoCompare histoday — preço de FECHAMENTO do dia. Dados desde 2010."""
     ts_alvo = _ts_inicio(data_str)
-    ts_to = _ts_fim(data_str)  # início do dia SEGUINTE → inclui o dia solicitado
+    ts_to = _ts_fim(data_str)  
 
     res = _get(
         "https://min-api.cryptocompare.com/data/v2/histoday",
@@ -286,7 +277,6 @@ def _preco_historico_bitstamp(symbol: str, data_str: str) -> Optional[float]:
             for c in ohlc:
                 if int(c.get("timestamp", 0)) == ts_alvo and float(c.get("close", 0)) > 0:
                     return float(c["close"])
-            # Fallback tolerante a fuso
             for c in ohlc:
                 diff = abs(int(c.get("timestamp", 0)) - ts_alvo)
                 if diff < 86400 and float(c.get("close", 0)) > 0:
@@ -300,7 +290,7 @@ def _preco_historico_kraken(symbol: str, data_str: str) -> Optional[float]:
     """Kraken OHLC diário — preço de FECHAMENTO. Dados desde ~2014."""
     pair = KRAKEN_MAP.get(symbol.upper(), f"{symbol.upper()}USD")
     ts_alvo = _ts_inicio(data_str)
-    since = ts_alvo - 86400 * 2  # 2 dias antes para garantir o candle do dia
+    since = ts_alvo - 86400 * 2 
 
     res = _get(
         "https://api.kraken.com/0/public/OHLC",
@@ -314,7 +304,7 @@ def _preco_historico_kraken(symbol: str, data_str: str) -> Optional[float]:
                     for candle in values:
                         diff = abs(int(candle[0]) - ts_alvo)
                         if diff < 86400 * 2 and float(candle[4]) > 0:
-                            return float(candle[4])  # índice 4 = close
+                            return float(candle[4])  
     return None
 
 
@@ -371,7 +361,7 @@ def buscar_preco_historico_cripto(symbol: str, data_str: str) -> Optional[float]
 
 def _historico_periodo_cryptocompare(symbol: str, data_inicio: str, data_fim: str) -> list:
     ts_ini = _ts_inicio(data_inicio)
-    ts_to = _ts_fim(data_fim)   # início do dia seguinte ao fim → inclui o último dia
+    ts_to = _ts_fim(data_fim)   
     ts_fim_dia = _ts_inicio(data_fim)
     dias = max(1, (ts_fim_dia - ts_ini) // 86400)
 
@@ -537,7 +527,7 @@ def buscar_historico_cripto_periodo(symbol: str, data_inicio: str, data_fim: str
     return []
 
 # ──────────────────────────────────────────────────────────────────────────────
-# VERSÕES BRL — delegam a exchange_service (interface preservada)
+# VERSÕES BRL
 # ──────────────────────────────────────────────────────────────────────────────
 
 def buscar_preco_atual_cripto_brl(symbol: str) -> Optional[float]:

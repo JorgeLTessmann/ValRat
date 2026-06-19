@@ -10,7 +10,6 @@ from entities.retirada import Retirada
 from entities.transacao import Transacao
 from entities.usuario import Usuario
 
-# Cria todas as tabelas com a estrutura mais recente
 Base.metadata.create_all(bind=engine)
 
 print("✅ Banco recriado com sucesso!")

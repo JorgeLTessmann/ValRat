@@ -1,3 +1,5 @@
+# popular_historico.py
+
 import sys
 import os
 from datetime import datetime, timedelta, date
@@ -10,7 +12,8 @@ from database import SessionLocal
 from entities.compra import Compra
 from entities.historico_patrimonio import HistoricoPatrimonio
 
-from services.brapi_service import buscar_ativo
+# Substituído o brapi_service pelo price_service unificado
+from services.price_service import buscar_preco_atual_acao_fii
 from services.renda_fixa.calculadora_renda_fixa import calcular_valor_renda_fixa
 
 def processar_usuario_historico(usuario_id: int):
@@ -91,7 +94,6 @@ def processar_usuario_historico(usuario_id: int):
 
         precos_atuais = {}
 
-        # Separa os tickers por categoria para buscar o preço correto
         compras_variavel_e_cripto = [
             c for c in compras_usuario
             if c.ticker and c.categoria not in ["Renda Fixa", "fixa"]
@@ -107,12 +109,10 @@ def processar_usuario_historico(usuario_id: int):
                     preco = buscar_preco_atual_cripto_brl(ticker)
                     precos_atuais[ticker] = preco
                 else:
-                    dados_ticker = buscar_ativo(ticker)
-                    if dados_ticker and "regularMarketPrice" in dados_ticker:
-                        precos_atuais[ticker] = float(dados_ticker["regularMarketPrice"])
-                    else:
-                        precos_atuais[ticker] = None
-                time.sleep(0.1)  # Evita block na API
+                    # Utiliza o serviço de precificação unificado do projeto
+                    preco = buscar_preco_atual_acao_fii(ticker)
+                    precos_atuais[ticker] = float(preco) if preco else None
+                time.sleep(0.1)
             except Exception as e:
                 print(f"[HISTÓRICO AVISO] Erro ao buscar preço de {ticker}: {e}")
                 precos_atuais[ticker] = None
@@ -140,17 +140,15 @@ def processar_usuario_historico(usuario_id: int):
                 if data_c <= data_fechamento_mes:
                     compras_ate_a_data.append(c)
 
-            # 8. CÁLCULO DE RENDIMENTO PROGRESSIVO NO TEMPO
             for compra in compras_ate_a_data:
-                # Caso de Renda Fixa
                 if compra.categoria in ["Renda Fixa", "fixa"]:
                     valor_investido_ativo = compra.valor_investido or 0.0
                     investido_dia += valor_investido_ativo
                     
                     try:
-                        taxa = compra.taxa_contratada if compra.taxa_contratada is not None else (compra.taxa or 0.0)
+                        taxa = compra.taxa_contratada if compra.taxa_contratada is not None else (getattr(compra, "taxa", 0.0) or 0.0)
                         indexador = compra.indexador or "CDI"
-                        tipo_rf = compra.tipo_renda_fixa or "cdb"
+                        tipo_rf = getattr(compra, "tipo_renda_fixa", "cdb") or "cdb"
                         
                         valor_atual_ativo = calcular_valor_renda_fixa(
                             valor_inicial=valor_investido_ativo,
@@ -167,7 +165,6 @@ def processar_usuario_historico(usuario_id: int):
                     patrimonio_dia += valor_atual_ativo
                     continue
 
-                # Caso de Renda Variável ou Cripto
                 valor_investido_ativo = (compra.preco_compra * compra.quantidade) if (compra.preco_compra is not None and compra.quantidade is not None) else 0.0
                 investido_dia += valor_investido_ativo
 
@@ -175,12 +172,10 @@ def processar_usuario_historico(usuario_id: int):
                 if preco_atual_mercado is None or preco_atual_mercado == 0:
                     preco_atual_mercado = compra.preco_compra or 0.0
 
-                # Calcula a variação total que o ativo teve da compra até hoje
                 variacao_total = preco_atual_mercado / compra.preco_compra if (compra.preco_compra and compra.preco_compra > 0) else 1.0
 
-                # Calcula quantos meses se passaram desde a compra até hoje
                 if isinstance(compra.data_compra, (datetime, date)):
-                    d_compra = compra.data_compra.date() if isinstance(compra.data_compra, datetime) else compra.data_compra
+                    d_compra = compra.data_compra.date() if isinstance(c.data_compra, datetime) else compra.data_compra
                 else:
                     d_compra = datetime.strptime(str(compra.data_compra).split(" ")[0], "%Y-%m-%d").date()
                 
@@ -188,12 +183,10 @@ def processar_usuario_historico(usuario_id: int):
                 if total_meses <= 0:
                     total_meses = 1
 
-                # Quantos meses se passaram desde a compra até o mês atual do loop
                 meses_decorridos = (data_fechamento_mes.year - d_compra.year) * 12 + (data_fechamento_mes.month - d_compra.month)
                 if meses_decorridos < 0:
                     meses_decorridos = 0
 
-                # Aplica o rendimento de forma linear ao longo dos meses passados
                 fator_tempo = meses_decorridos / total_meses
                 fator_oscilacao_mes = 1.0 + ((variacao_total - 1.0) * fator_tempo)
 
@@ -205,7 +198,7 @@ def processar_usuario_historico(usuario_id: int):
                 
                 snapshot = HistoricoPatrimonio(
                     usuario_id=usuario_id,
-                    data=data_fechamento_mes.strftime("%Y-%m-%d"),
+                    data=data_fechamento_mes,
                     patrimonio=patrimonio_dia,
                     investido=investido_dia,
                     lucro=lucro_dia

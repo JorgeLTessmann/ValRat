@@ -1,14 +1,22 @@
+# scheduler.py
+
+import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from services.analytics.snapshot_service import salvar_snapshot_diario
-import time
-import threading
+
+logger = logging.getLogger("scheduler")
 
 def iniciar_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(salvar_snapshot_diario, 'interval', hours=24)
+    
+    scheduler.add_job(
+        salvar_snapshot_diario, 
+        'interval', 
+        hours=24,
+        id='snapshot_diario_job',
+        replace_existing=True
+    )
+    
     scheduler.start()
-    print("✅ Scheduler iniciado - Snapshot diário agendado")
+    logger.info("✅ Scheduler iniciado - Mapeamento de snapshots diários ativo (24h).")
     return scheduler
-
-# Inicia automaticamente
-scheduler = iniciar_scheduler()

@@ -1,32 +1,46 @@
 # services/market/treasury_service.py
 
-from services.market.brasilapi_service import (
-    buscar_tesouro,
-    buscar_titulo_tesouro_por_codigo
-)
+import requests
+from typing import Optional, List, Dict, Any
+
+BASE_URL = "https://brasilapi.com.br/api"
+
+def listar_titulos_tesouro() -> Optional[List[Dict[str, Any]]]:
+
+    try:
+        response = requests.get(
+            f"{BASE_URL}/tesouro/v1",
+            timeout=15
+        )
+        
+        if response.status_code != 200:
+            return None
+        
+        return response.json()
+    
+    except Exception:
+        return None
 
 
-def listar_titulos_tesouro():
-    """
-    Lista todos os títulos do Tesouro Direto disponíveis
-    """
-    return buscar_tesouro()
+def buscar_titulo(codigo: str) -> Optional[Dict[str, Any]]:
+
+    titulos = listar_titulos_tesouro()
+    
+    if not titulos:
+        return None
+    
+    for titulo in titulos:
+        if titulo.get("codigo") == codigo.upper():
+            return titulo
+    
+    return None
 
 
-def buscar_titulo(codigo: str):
-    """
-    Busca um título específico pelo código (ex: NTN-B 2035)
-    """
-    return buscar_titulo_tesouro_por_codigo(codigo)
+def get_preco_titulo(codigo: str) -> Optional[float]:
 
-
-def get_preco_titulo(codigo: str) -> float | None:
-    """
-    Retorna o preço atual de um título do Tesouro
-    """
-    titulo = buscar_titulo_tesouro_por_codigo(codigo)
+    titulo = buscar_titulo(codigo)
     
     if not titulo:
         return None
     
-    return titulo.get("precoUnitario")
+    return float(titulo.get("precoUnitario", 0))

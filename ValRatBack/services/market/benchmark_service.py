@@ -12,10 +12,10 @@ Todos os dados vêm de APIs externas REAIS:
 Nenhum dado é mockado ou inventado.
 """
 
-from services.market.brasilapi_service import (
-    buscar_taxa_cdi,
-    buscar_taxa_selic,
-    buscar_taxa_ipca
+from services.market.indicadores_service import (
+    get_cdi_atual,
+    get_selic_atual,
+    get_ipca_atual
 )
 from services.brapi_service import buscar_historico_ibov
 
@@ -26,9 +26,9 @@ def get_benchmarks():
     Usado pelo front-end para exibir indicadores na dashboard.
     """
     
-    cdi = buscar_taxa_cdi()
-    selic = buscar_taxa_selic()
-    ipca = buscar_taxa_ipca()
+    cdi = get_cdi_atual()
+    selic = get_selic_atual()
+    ipca = get_ipca_atual()
     ibov = buscar_historico_ibov()
     
     ibov_percentual = None
@@ -45,19 +45,19 @@ def get_benchmarks():
 
 def get_cdi_benchmark():
     """Retorna a taxa CDI atual real"""
-    taxa = buscar_taxa_cdi()
+    taxa = get_cdi_atual()
     return taxa / 100 if taxa else None
 
 
 def get_selic_benchmark():
     """Retorna a taxa SELIC atual real"""
-    taxa = buscar_taxa_selic()
+    taxa = get_selic_atual()
     return taxa / 100 if taxa else None
 
 
 def get_ipca_benchmark():
     """Retorna a taxa IPCA atual real"""
-    taxa = buscar_taxa_ipca()
+    taxa = get_ipca_atual()
     return taxa / 100 if taxa else None
 
 
@@ -66,4 +66,4 @@ def get_ibov_benchmark():
     ibov = buscar_historico_ibov()
     if ibov:
         return ibov.get("regularMarketChangePercent", 0) / 100
-    return None
+    return None 

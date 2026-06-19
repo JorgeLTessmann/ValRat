@@ -19,7 +19,7 @@ TOKEN = os.getenv("TOKEN_BRAPI")
 def _yahoo_preco_historico(ticker: str, data_str: str) -> Optional[float]:
     """Fallback via Yahoo Finance (converte para float nativo)"""
     try:
-        from services.market.yahoo_provider import buscar_preco_historico_yahoo
+        from services.market.providers.yahoo_provider import buscar_preco_historico_yahoo
         preco = buscar_preco_historico_yahoo(ticker, data_str)
         if preco is not None:
             return float(preco)
@@ -30,7 +30,7 @@ def _yahoo_preco_historico(ticker: str, data_str: str) -> Optional[float]:
 
 def _yahoo_preco_atual(ticker: str) -> Optional[float]:
     try:
-        from services.market.yahoo_provider import buscar_preco_atual_yahoo
+        from services.market.providers.yahoo_provider import buscar_preco_atual_yahoo
         preco = buscar_preco_atual_yahoo(ticker)
         if preco is not None:
             return float(preco)

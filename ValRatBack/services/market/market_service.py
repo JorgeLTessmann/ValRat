@@ -1,22 +1,14 @@
-# services/market/market_service.py
 
-from services.market.providers.brapi_provider import (
-    buscar_ativo_brapi
+from services.market.providers.brapi_provider import buscar_ativo_brapi
+
+from services.market.indicadores_service import (
+    get_cdi_atual,
+    get_selic_atual,
+    get_ipca_atual
 )
 
-from services.market.brasilapi_service import (
-    buscar_taxa_cdi,
-    buscar_taxa_selic,
-    buscar_taxa_ipca
-)
-
-from services.market.sync.atualizar_acoes import (
-    atualizar_acoes
-)
-
-from services.analytics.snapshot_service import (
-    salvar_snapshot_diario
-)
+from services.market.sync.atualizar_acoes import atualizar_acoes
+from services.analytics.snapshot_service import salvar_snapshot_diario
 
 
 # =========================
@@ -28,28 +20,19 @@ def get_stock_data(ticker: str):
 
 
 # =========================
-# INDICADORES (via BrasilAPI)
+# INDICADORES
 # =========================
 
 def get_cdi():
-    taxa = buscar_taxa_cdi()
-    if taxa:
-        return taxa / 100
-    return None
+    return get_cdi_atual()
 
 
 def get_selic():
-    taxa = buscar_taxa_selic()
-    if taxa:
-        return taxa / 100
-    return None
+    return get_selic_atual()
 
 
 def get_ipca():
-    taxa = buscar_taxa_ipca()
-    if taxa:
-        return taxa / 100
-    return None
+    return get_ipca_atual()
 
 
 # =========================

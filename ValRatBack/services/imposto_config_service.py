@@ -2,9 +2,10 @@
 
 import json
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 _CONFIG_FILE = os.path.join(os.path.dirname(__file__), "..", "config", "imposto_config.json")
+_config_cache = None
 
 
 def _carregar_config() -> Dict[str, Any]:
@@ -22,9 +23,6 @@ def _recarregar_config():
     _config_cache = None
 
 
-_config_cache = None
-
-
 def _get_config() -> Dict[str, Any]:
     """Retorna a configuração com cache"""
     global _config_cache
@@ -34,15 +32,7 @@ def _get_config() -> Dict[str, Any]:
 
 
 def get_aliquota_ir_renda_fixa(dias: int) -> float:
-    """
-    Retorna a alíquota de IR para renda fixa baseada no prazo em dias.
-    
-    Args:
-        dias: Número de dias entre compra e venda
-    
-    Returns:
-        Alíquota em decimal (ex: 0.15 para 15%)
-    """
+    """Retorna a alíquota de IR para renda fixa baseada no prazo em dias."""
     config = _get_config()
     regras = config.get("aliquotas_ir", {}).get("regras", [])
     
@@ -54,7 +44,7 @@ def get_aliquota_ir_renda_fixa(dias: int) -> float:
             if dias_max is None or dias <= dias_max:
                 return regra.get("aliquota", 15.0) / 100
     
-    return 0.15  # fallback
+    return 0.15
 
 
 def is_ativo_isento(tipo_ativo: str) -> bool:
@@ -73,14 +63,16 @@ def get_aliquota_acao(day_trade: bool = False) -> float:
 
 
 def get_aliquota_cripto(valor_vendido_mes: float = 0) -> float:
-    """Retorna alíquota para criptomoedas"""
+    """
+    Retorna alíquota para criptomoedas. 
+    (Corrigido e costurado após o corte do arquivo antigo)
+    """
     config = _get_config()
     limite_isencao = config.get("criptomoedas", {}).get("limite_isencao_mensal", 35000)
     
     if valor_vendido_mes <= limite_isencao:
         return 0.0
     
-    # Para valores maiores, usa a alíquota padrão
     return config.get("criptomoedas", {}).get("aliquota_padrao", 15.0) / 100
 
 
