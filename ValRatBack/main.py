@@ -62,9 +62,9 @@ app = FastAPI(
 # =========================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["http://localhost:3000"], 
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -205,6 +205,10 @@ async def get_historico(x_user_email: Optional[str] = Header(None), db: Session 
                   .filter(HistoricoPatrimonio.usuario_id == usuario.id)\
                   .order_by(HistoricoPatrimonio.data.asc()).all()
     
+    # PROTEÇÃO: Retorna lista vazia se não houver histórico
+    if not historico:
+        return []
+
     historico_formatado = []
     for item in historico:
         historico_formatado.append({
