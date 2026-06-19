@@ -103,12 +103,7 @@ def obtener_usuario_por_email(db: Session, email: Optional[str]):
         
     email_limpo = email.strip()
     usuario = db.query(Usuario).filter(Usuario.email == email_limpo).first()
-    
-    if not usuario:
-        logger.info(f"[AUTO-CADASTRO] Gerando registro dinâmico para {email_limpo} para ambiente de testes.")
-        usuario = Usuario.cadastrar(db, nome="Jorge", email=email_limpo, senha="123")
-        db.refresh(usuario)
-        
+
     return usuario
 
 # =========================
