@@ -10,11 +10,7 @@ def gerar_comparativo(historico):
     if not historico or len(historico) == 0:
         return []
     
-    cdi_atual = buscar_taxa_cdi()
-    if cdi_atual:
-        cdi_anual = cdi_atual / 100
-    else:
-        cdi_anual = 0.105   
+    cdi_anual = buscar_taxa_cdi() or 0.105  
     
     ibov_percentual = 0.0
     

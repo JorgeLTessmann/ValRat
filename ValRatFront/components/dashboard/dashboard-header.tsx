@@ -28,23 +28,29 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
 
   useEffect(() => {
     const userEmail = currentUser?.email || (typeof currentUser === 'string' ? currentUser : null)
-    
+
     if (!userEmail) return
 
     const sincronizarHistoricoBackend = async () => {
       try {
-        // CORRIGIDO: Apontando para o subdomínio correto da Render (valratback)
-        // Dica: O ideal no futuro é usar process.env.NEXT_PUBLIC_API_URL aqui
-        const baseUrl = 'https://valratback.onrender.com'
-        
-        await fetch(`${baseUrl}/historico/sincronizar`, {
+
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://valrat.onrender.com'
+
+        const response = await fetch(`${baseUrl}/historico/sincronizar`, {
           method: 'GET',
           headers: {
             'X-User-Email': userEmail
           }
         })
+
+        if (!response.ok) {
+          console.warn(`[HISTÓRICO] Sincronização retornou status ${response.status}`)
+          return
+        }
+
         console.log('[HISTÓRICO] Comando de sincronização inteligente enviado ao backend.')
       } catch (error) {
+
         console.error('[HISTÓRICO ERRO] Falha ao acionar sincronização automática:', error)
       }
     }
@@ -52,7 +58,6 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
     sincronizarHistoricoBackend()
   }, [currentUser])
 
-  // LÓGICA 2: Verificação dinâmica do status de funcionamento da B3
   useEffect(() => {
     const checkMarketStatus = () => {
       const now = new Date()
@@ -83,7 +88,7 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
             <span className="text-xl font-black tracking-tight text-primary">Val</span>
             <span className="text-xl font-black tracking-tight text-foreground">Rat</span>
           </div>
-          
+
           <h1 className="text-3xl lg:text-4xl font-bold text-foreground tracking-tight">
             {getGreeting()}, <span className="text-primary font-extrabold">{userName}</span>
           </h1>
@@ -92,7 +97,7 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
             {currentUser?.email || 'Painel de Controle de Investimentos'}
           </p>
         </div>
-        
+
         <div className="flex items-center gap-3 self-end md:self-auto shrink-0">
           <div className="hidden sm:block">
             <Card className="border-border/60 shadow-sm bg-card">
@@ -104,12 +109,12 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
                     )}
                     <span className={cn(
                       "relative inline-flex rounded-full h-2 w-2",
-                      marketStatus.isOpen 
-                        ? "bg-emerald-500" 
+                      marketStatus.isOpen
+                        ? "bg-emerald-500"
                         : "bg-muted-foreground/50"
                     )} />
                   </span>
-                  
+
                   <span className="text-xs font-semibold tracking-wide text-muted-foreground font-mono">
                     {marketStatus.label}
                   </span>
@@ -118,9 +123,9 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
             </Card>
           </div>
 
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={logoutCurrent}
             className="h-9 gap-2 border-border/60 text-xs font-semibold shadow-sm hover:bg-secondary transition-all"
           >

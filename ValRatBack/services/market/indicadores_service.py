@@ -287,3 +287,6 @@ def get_ipca_atual() -> Optional[float]:
     except:
         pass
     return None
+
+def buscar_taxa_cdi():
+    return get_cdi_atual()
