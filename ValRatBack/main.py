@@ -41,7 +41,7 @@ Base.metadata.create_all(bind=engine)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        from services.scheduler_service import iniciar_scheduler
+        from scheduler import iniciar_scheduler
         iniciar_scheduler()
         logger.info("📅 Módulo de rotinas agendadas (Scheduler) acoplado com sucesso.")
     except Exception as e:
