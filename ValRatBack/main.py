@@ -29,7 +29,7 @@ from models.renda_fixa_model import RendaFixaModel
 from services.portfolio_service import montar_portfolio, montar_portfolio_resumido
 from services.carteira_service import cadastrar_compra_api, remover_compra, retirar_valor
 from services.renda_fixa_service import cadastrar_renda_fixa
-from services.market.indicadores_service import buscar_taxa_cdi
+from services.market.indicadores_service import get_cdi_atual as buscar_taxa_cdi
 from services.analytics.snapshot_service import salvar_snapshot_diario
 from services.asset_validator_service import validar_tipo_ativo, buscar_sugestoes_ticker
 
