@@ -176,3 +176,6 @@ def calcular_rentabilidade(
         "lucro": round(lucro, 2),
         "percentual": round(percentual, 2)
     }
+
+def buscar_preco_historico_acao_fii(ticker: str, data: str):
+    return buscar_preco_historico_variavel(ticker, data)
