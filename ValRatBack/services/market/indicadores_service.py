@@ -39,20 +39,20 @@ def _buscar_indicador(symbol: str, start_date: str, end_date: str = None) -> Opt
     try:
         response = requests.get(url, timeout=30)
         if response.status_code != 200:
-            print(f"❌ BRAPI erro {response.status_code} para {symbol}")
+            print(f"[ERRO] BRAPI erro {response.status_code} para {symbol}")
             return None
         
         data = response.json()
         results = data.get("results", [])
         
         if not results:
-            print(f"❌ Sem resultados para {symbol}")
+            print(f"[AVISO] Sem resultados para {symbol}")
             return None
         
         return results
     
     except Exception as e:
-        print(f"❌ Erro ao buscar {symbol}: {e}")
+        print(f"[ERRO] Erro ao buscar {symbol}: {e}")
         return None
 
 
@@ -260,7 +260,7 @@ def get_cdi_atual() -> Optional[float]:
         if res.status_code == 200:
             return float(res.json().get("valor", 0)) / 100
     except Exception as e:
-        print(f"⚠️ Falha no fallback BrasilAPI (CDI): {e}")
+        print(f"[AVISO] Falha no fallback BrasilAPI (CDI): {e}")
     return None
 
 
@@ -271,7 +271,7 @@ def get_selic_atual() -> Optional[float]:
         if res.status_code == 200:
             return float(res.json().get("valor", 0)) / 100
     except Exception as e:
-        print(f"⚠️ Falha no fallback BrasilAPI (SELIC): {e}")
+        print(f"[AVISO] Falha no fallback BrasilAPI (SELIC): {e}")
     return None
 
 
