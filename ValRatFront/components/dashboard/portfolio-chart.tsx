@@ -13,6 +13,13 @@ interface PortfolioChartProps {
   isVisible?: boolean
 }
 
+// Compara apenas a parte de data (YYYY-MM-DD), ignorando timezone/horário
+function isHoje(dateString: string) {
+  const hoje = new Date()
+  const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
+  return dateString.split('T')[0] === hojeStr
+}
+
 export function PortfolioChart({ data, isVisible = true }: PortfolioChartProps) {
   console.log("[DEBUG RAIO-X] Total de pontos mensais recebidos:", data?.length)
   
@@ -26,6 +33,9 @@ export function PortfolioChart({ data, isVisible = true }: PortfolioChartProps) 
       return dataA - dataB
     })
   }, [data])
+
+  // Índice do último ponto, usado para saber se ele é "hoje" (valor ao vivo, não-snapshot)
+  const ultimoIndex = dadosOrdenados.length - 1
 
   if (!isVisible) {
     return (
@@ -62,6 +72,28 @@ export function PortfolioChart({ data, isVisible = true }: PortfolioChartProps) 
       month: 'short',
       year: '2-digit'
     }).format(dataObjeto)
+  }
+
+  // 3. Dot customizado: ponto de hoje (ao vivo) ganha destaque visual diferenciado
+  const renderDot = (props: any) => {
+    const { cx, cy, index } = props
+    const ehUltimoPonto = index === ultimoIndex
+
+    if (!ehUltimoPonto) {
+      // Demais pontos (snapshots históricos): sem marcador, mantém o visual limpo original
+      return <g key={`dot-${index}`} />
+    }
+
+    return (
+      <g key={`dot-${index}`}>
+        {/* Pulso suave indicando dado em tempo real */}
+        <circle cx={cx} cy={cy} r={7} fill="var(--primary)" opacity={0.18}>
+          <animate attributeName="r" values="6;10;6" dur="2s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.25;0.05;0.25" dur="2s" repeatCount="indefinite" />
+        </circle>
+        <circle cx={cx} cy={cy} r={4} fill="var(--background)" stroke="var(--primary)" strokeWidth={2} />
+      </g>
+    )
   }
 
   return (
@@ -110,6 +142,7 @@ export function PortfolioChart({ data, isVisible = true }: PortfolioChartProps) 
               const currentData = payload[0].payload
               const [ano, mes] = currentData.date.split('T')[0].split('-')
               const dataTooltip = new Date(Number(ano), Number(mes) - 1, 1)
+              const ehHoje = isHoje(currentData.date)
 
               // Calcula o lucro caso a propriedade não venha explícita do backend
               const patrimonio = currentData.value || 0
@@ -118,12 +151,25 @@ export function PortfolioChart({ data, isVisible = true }: PortfolioChartProps) 
 
               return (
                 <div className="bg-popover border border-border/80 rounded-lg shadow-md p-3 transition-all backdrop-blur-sm min-w-[180px]">
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mb-2 border-b border-border/60 pb-1">
-                    {new Intl.DateTimeFormat('pt-BR', {
-                      month: 'long',
-                      year: 'numeric'
-                    }).format(dataTooltip)}
-                  </p>
+                  <div className="flex items-center justify-between gap-2 mb-2 border-b border-border/60 pb-1">
+                    <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                      {ehHoje
+                        ? 'Hoje'
+                        : new Intl.DateTimeFormat('pt-BR', {
+                            month: 'long',
+                            year: 'numeric'
+                          }).format(dataTooltip)}
+                    </p>
+                    {ehHoje && (
+                      <span className="flex items-center gap-1 text-[9px] font-semibold text-primary uppercase tracking-wide">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary" />
+                        </span>
+                        Ao vivo
+                      </span>
+                    )}
+                  </div>
                   
                   <div className="space-y-1">
                     <div className="flex justify-between items-center gap-4">
@@ -162,6 +208,7 @@ export function PortfolioChart({ data, isVisible = true }: PortfolioChartProps) 
           dataKey="value"
           stroke="var(--primary)"
           strokeWidth={2}
+          dot={renderDot}
           activeDot={{ r: 5, stroke: 'var(--background)', strokeWidth: 2 }}
           fill="url(#chartGradient)"
           connectNulls={true}

@@ -4,6 +4,7 @@ import logging
 import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional
+import datetime
 
 from fastapi import FastAPI, Header, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -198,14 +199,10 @@ async def post_renda_fixa(renda_fixa: CompraModel, x_user_email: Optional[str] =
 @app.get("/historico")
 async def get_historico(x_user_email: Optional[str] = Header(None), db: Session = Depends(get_db)):
     usuario = obtener_usuario_por_email(db, x_user_email)
-    
+
     historico = db.query(HistoricoPatrimonio)\
                   .filter(HistoricoPatrimonio.usuario_id == usuario.id)\
                   .order_by(HistoricoPatrimonio.data.asc()).all()
-    
-    # PROTEÇÃO: Retorna lista vazia se não houver histórico
-    if not historico:
-        return []
 
     historico_formatado = []
     for item in historico:
@@ -213,18 +210,33 @@ async def get_historico(x_user_email: Optional[str] = Header(None), db: Session 
             "date": item.data.strftime("%Y-%m-%d") if hasattr(item.data, "strftime") else str(item.data).split(" ")[0],
             "value": round(item.patrimonio, 2) if item.patrimonio is not None else 0.0
         })
-    
+
+    # === MERGE DO PONTO DE HOJE (AO VIVO) ===
+    # Garante que o último ponto do gráfico nunca fique desatualizado em
+    # relação ao card de Patrimônio Total, sem gravar snapshots extras no banco.
+    from services.analytics.snapshot_service import calcular_snapshot_atual
+    hoje_str = datetime.now().strftime("%Y-%m-%d")
+
+    try:
+        dados_ao_vivo = calcular_snapshot_atual(usuario.id)
+        ponto_hoje = {"date": hoje_str, "value": round(dados_ao_vivo["patrimonio"], 2)}
+
+        if historico_formatado and historico_formatado[-1]["date"] == hoje_str:
+            # já existe snapshot de hoje (ex: scheduler já rodou) -> substitui pelo valor ao vivo
+            historico_formatado[-1] = ponto_hoje
+        else:
+            # ainda não há snapshot hoje -> acrescenta o ponto vivo no final
+            historico_formatado.append(ponto_hoje)
+    except Exception as e:
+        logger.warning(f"⚠️ Falha ao calcular ponto ao vivo do histórico (usuário {usuario.id}): {e}")
+        # Em caso de erro, segue só com o histórico salvo — não quebra a rota.
+
+    if not historico_formatado:
+        return []
+
     from services.analytics.comparison_service import gerar_comparativo
     comparativo = gerar_comparativo(historico_formatado)
-    
-    if comparativo and len(historico_formatado) > 0:
-        valor_inicial = historico_formatado[0]["value"]
-        if valor_inicial > 0:
-            for item in comparativo:
-                item["carteira"] = round((item["carteira"] / valor_inicial) * 100, 2)
-                item["cdi"] = round((item["cdi"] / valor_inicial) * 100, 2)
-                item["ibov"] = round((item["ibov"] / valor_inicial) * 100, 2)
-                
+
     return comparativo
 
 
