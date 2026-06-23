@@ -143,7 +143,12 @@ async def get_carteira(x_user_email: Optional[str] = Header(None), db: Session =
 
 
 @app.post("/compras")
-async def post_compras(compra: CompraModel, x_user_email: Optional[str] = Header(None), db: Session = Depends(get_db)):
+async def post_compras(
+    compra: CompraModel,
+    background_tasks: BackgroundTasks,   # ← adicionar este parâmetro
+    x_user_email: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
     usuario = obtener_usuario_por_email(db, x_user_email)
     try:
         resultado = cadastrar_compra_api(
@@ -156,6 +161,10 @@ async def post_compras(compra: CompraModel, x_user_email: Optional[str] = Header
         )
         if "erro" in resultado:
             raise HTTPException(status_code=400, detail=resultado["erro"])
+
+        from services.analytics.snapshot_service import recalcular_historico_a_partir_de
+        background_tasks.add_task(recalcular_historico_a_partir_de, usuario.id, compra.data_compra)
+
         return resultado
     except Exception as e:
         logger.error(f"❌ Falha no processamento de ordem de compra: {e}", exc_info=True)
@@ -179,9 +188,14 @@ async def realizar_retirada(retirada: RetiradaModel, x_user_email: Optional[str]
 
 
 @app.post("/renda-fixa")
-async def post_renda_fixa(renda_fixa: CompraModel, x_user_email: Optional[str] = Header(None), db: Session = Depends(get_db)):
+async def post_renda_fixa(
+    renda_fixa: CompraModel,
+    background_tasks: BackgroundTasks,
+    x_user_email: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
     usuario = obtener_usuario_por_email(db, x_user_email)
-    return cadastrar_renda_fixa(
+    resultado = cadastrar_renda_fixa(
         usuario_id=usuario.id,
         nome_aplicacao=renda_fixa.nome_aplicacao,
         valor_applied=renda_fixa.valor_investido,
@@ -194,6 +208,11 @@ async def post_renda_fixa(renda_fixa: CompraModel, x_user_email: Optional[str] =
         data_carencia=renda_fixa.data_carencia,
         plataforma=renda_fixa.plataforma
     )
+
+    from services.analytics.snapshot_service import recalcular_historico_a_partir_de
+    background_tasks.add_task(recalcular_historico_a_partir_de, usuario.id, renda_fixa.data_compra)
+
+    return resultado
 
 
 @app.get("/historico")

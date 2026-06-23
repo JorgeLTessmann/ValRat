@@ -1,51 +1,60 @@
 # services/portfolio_service.py
-
 import logging
 from database import SessionLocal
 from entities.compra import Compra
+from entities.renda_fixa import RendaFixa   # ← NOVO IMPORT
 from entities.historico_patrimonio import HistoricoPatrimonio
 from entities.transacao import Transacao
 from services.portfolio.variable_income import calcular_renda_variavel
-from services.portfolio.fixed_income import calcular_renda_fixa_das_compras
-# from services.analytics.comparison_service import gerar_comparativo
+from services.portfolio.fixed_income import (
+    calcular_renda_fixa_das_compras,
+    calcular_renda_fixa_das_aplicacoes,   # ← NOVO IMPORT
+)
 from services.portfolio.allocation_service import gerar_allocations
 from services.cache_service import get_cache, set_cache
+from datetime import date
 
 logger = logging.getLogger(__name__)
 
 
 def montar_portfolio(usuario_id: int, force_refresh: bool = False):
-    # Geramos uma chave de cache exclusiva para o ID deste usuário
     cache_key = f"portfolio_completo_{usuario_id}"
 
     if not force_refresh:
         cached = get_cache(cache_key, max_age_seconds=30)
         if cached:
             return cached
-    
+
     db = SessionLocal()
 
-    # CRÍTICO: Filtrando as compras exclusivamente do usuário logado
     compras = db.query(Compra).filter(
         Compra.usuario_id == usuario_id
     ).all()
 
-    logger.info(f"Total de compras no banco para usuario {usuario_id}: {len(compras)}")
-    
+    aplicacoes_fixa = db.query(RendaFixa).filter(
+        RendaFixa.usuario_id == usuario_id
+    ).all()
+
+    logger.info(
+        f"Total de compras no banco para usuario {usuario_id}: {len(compras)} "
+        f"| aplicações renda fixa: {len(aplicacoes_fixa)}"
+    )
+
     compras_variavel = [c for c in compras if c.categoria in ["variavel", "cripto"]]
     compras_fixa = [c for c in compras if c.categoria in ["fixa", "Renda Fixa", None]]
-    
+
     logger.info(f"Compras variável: {len(compras_variavel)}, Compras fixa: {len(compras_fixa)}")
 
     assets_variavel, balance_variavel, invested_variavel, ir_variavel = calcular_renda_variavel(compras_variavel)
     assets_fixa, balance_fixa, invested_fixa, ir_fixa = calcular_renda_fixa_das_compras(compras_fixa)
 
-    assets = assets_variavel + assets_fixa
-    total_balance = balance_variavel + balance_fixa
-    total_invested = invested_variavel + invested_fixa
-    total_ir = ir_variavel + ir_fixa
+    assets_aplicacoes, balance_aplicacoes, invested_aplicacoes, ir_aplicacoes = calcular_renda_fixa_das_aplicacoes(aplicacoes_fixa)
 
-    # CRÍTICO: Filtrando as transações do usuário logado
+    assets = assets_variavel + assets_fixa + assets_aplicacoes
+    total_balance = balance_variavel + balance_fixa + balance_aplicacoes
+    total_invested = invested_variavel + invested_fixa + invested_aplicacoes
+    total_ir = ir_variavel + ir_fixa + ir_aplicacoes
+
     transacoes_db = db.query(Transacao).filter(
         Transacao.usuario_id == usuario_id
     ).order_by(Transacao.data.desc()).limit(50).all()
@@ -63,7 +72,6 @@ def montar_portfolio(usuario_id: int, force_refresh: bool = False):
             "status": t.status
         })
 
-    # CRÍTICO: Filtrando o histórico de patrimônio do usuário logado
     historico = db.query(HistoricoPatrimonio).filter(
         HistoricoPatrimonio.usuario_id == usuario_id
     ).order_by(HistoricoPatrimonio.data.asc()).all()
@@ -77,13 +85,10 @@ def montar_portfolio(usuario_id: int, force_refresh: bool = False):
             "lucro": round(item.lucro, 2) if item.lucro is not None else 0.0
         })
 
-    # comparativo = gerar_comparativo(historico_formatado)
     comparativo = []
     allocations = gerar_allocations(assets=assets, total_balance=total_balance)
 
     db.close()
-
-    # Evita divisão por zero se for uma conta nova sem aportes
     profit_loss_total = total_balance - total_invested
     percent_change_total = (profit_loss_total / total_invested * 100) if total_invested > 0 else 0
 
@@ -100,7 +105,6 @@ def montar_portfolio(usuario_id: int, force_refresh: bool = False):
         "comparisonData": comparativo
     }
     
-    # Salva no cache com a chave única do usuário
     set_cache(cache_key, resultado)
     return resultado
 
@@ -110,7 +114,7 @@ def montar_portfolio_resumido(usuario_id: int):
         ultimo = db.query(HistoricoPatrimonio).filter(
             HistoricoPatrimonio.usuario_id == usuario_id
         ).order_by(HistoricoPatrimonio.data.desc()).first()
-        
+
         if ultimo:
             return {
                 "totalBalance": float(ultimo.patrimonio) if ultimo.patrimonio is not None else 0.0,
@@ -118,21 +122,23 @@ def montar_portfolio_resumido(usuario_id: int):
                 "profitLoss": float(ultimo.lucro) if ultimo.lucro is not None else 0.0,
                 "percentChange": float(ultimo.percentual) if ultimo.percentual is not None else 0.0
             }
-        
+
         compras = db.query(Compra).filter(Compra.usuario_id == usuario_id).all()
-        
-        if compras:
+        aplicacoes_fixa = db.query(RendaFixa).filter(RendaFixa.usuario_id == usuario_id).all()  # NOVO
+
+        if compras or aplicacoes_fixa:  # ajustado: considera também renda fixa isolada
             compras_variavel = [c for c in compras if c.categoria in ["variavel", "cripto"]]
             compras_fixa = [c for c in compras if c.categoria in ["fixa", "Renda Fixa", None]]
-            
+
             _, balance_var, invested_var, _ = calcular_renda_variavel(compras_variavel)
             _, balance_fixa, invested_fixa, _ = calcular_renda_fixa_das_compras(compras_fixa)
-            
-            total_balance = balance_var + balance_fixa
-            total_invested = invested_var + invested_fixa
+            _, balance_aplicacoes, invested_aplicacoes, _ = calcular_renda_fixa_das_aplicacoes(aplicacoes_fixa)  # NOVO
+
+            total_balance = balance_var + balance_fixa + balance_aplicacoes
+            total_invested = invested_var + invested_fixa + invested_aplicacoes
             profit_loss = total_balance - total_invested
             percent_change = (profit_loss / total_invested * 100) if total_invested > 0 else 0.0
-            
+
             return {
                 "totalBalance": round(total_balance, 2),
                 "totalInvested": round(total_invested, 2),
@@ -143,10 +149,45 @@ def montar_portfolio_resumido(usuario_id: int):
         logger.error(f"Erro ao buscar ultimo historico de patrimonio para o usuario {usuario_id}: {e}", exc_info=True)
     finally:
         db.close()
-    
+
     return {
         "totalBalance": 0.0,
         "totalInvested": 0.0,
         "profitLoss": 0.0,
         "percentChange": 0.0
+    }
+
+def montar_portfolio_em_data(usuario_id: int, data_referencia: date):
+    db = SessionLocal()
+
+    compras = db.query(Compra).filter(
+        Compra.usuario_id == usuario_id
+    ).all()
+
+    aplicacoes_fixa = db.query(RendaFixa).filter(
+        RendaFixa.usuario_id == usuario_id
+    ).all()
+
+    compras_variavel = [c for c in compras if c.categoria in ["variavel", "cripto"]]
+    compras_fixa = [c for c in compras if c.categoria in ["fixa", "Renda Fixa", None]]
+
+    assets_variavel, balance_variavel, invested_variavel, ir_variavel = calcular_renda_variavel(
+        compras_variavel, data_referencia=data_referencia
+    )
+    assets_fixa, balance_fixa, invested_fixa, ir_fixa = calcular_renda_fixa_das_compras(
+        compras_fixa, data_referencia=data_referencia
+    )
+    assets_aplicacoes, balance_aplicacoes, invested_aplicacoes, ir_aplicacoes = calcular_renda_fixa_das_aplicacoes(
+        aplicacoes_fixa, data_referencia=data_referencia
+    )
+
+    total_balance = balance_variavel + balance_fixa + balance_aplicacoes
+    total_invested = invested_variavel + invested_fixa + invested_aplicacoes
+
+    db.close()
+
+    return {
+        "totalBalance": round(total_balance, 2),
+        "totalInvested": round(total_invested, 2),
+        "profitLoss": round(total_balance - total_invested, 2),
     }
