@@ -110,3 +110,53 @@ def recalcular_historico_a_partir_de(usuario_id: int, data_compra_str: str):
         db.rollback()
     finally:
         db.close()
+
+def recalcular_historico_completo(usuario_id: int):
+    """
+    Apaga TODO o histórico salvo do usuário e regenera do zero,
+    a partir da data do ativo mais antigo cadastrado (compra ou
+    aplicação de renda fixa), considerando TODOS os ativos atuais.
+
+    Usado pelo botão de reload manual do gráfico -- diferente de
+    recalcular_historico_a_partir_de, que só corrige a partir de uma
+    data específica (usado no fluxo automático de compra retroativa).
+    """
+    db = SessionLocal()
+    try:
+        from entities.compra import Compra
+        from entities.renda_fixa import RendaFixa
+
+        datas_compras = [
+            c.data_compra for c in
+            db.query(Compra).filter(Compra.usuario_id == usuario_id).all()
+            if c.data_compra
+        ]
+        datas_aplicacoes = [
+            a.data_aplicacao for a in
+            db.query(RendaFixa).filter(RendaFixa.usuario_id == usuario_id).all()
+            if a.data_aplicacao
+        ]
+
+        todas_as_datas = datas_compras + datas_aplicacoes
+
+        if not todas_as_datas:
+            # Usuário sem nenhum ativo: apenas limpa o histórico e retorna vazio
+            db.query(HistoricoPatrimonio).filter(
+                HistoricoPatrimonio.usuario_id == usuario_id
+            ).delete(synchronize_session=False)
+            db.commit()
+            print(f"⚠️ Usuário {usuario_id} sem ativos cadastrados — histórico zerado.")
+            return
+
+        data_mais_antiga = min(todas_as_datas)
+
+    except Exception as e:
+        print(f"❌ Erro ao localizar data mais antiga do usuário {usuario_id}: {e}")
+        db.rollback()
+        db.close()
+        return
+    finally:
+        db.close()
+
+    # Reusa a função já existente -- ela apaga (>= data_inicio) e regrava mensalmente
+    recalcular_historico_a_partir_de(usuario_id, data_mais_antiga)

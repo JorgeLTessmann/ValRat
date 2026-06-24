@@ -230,9 +230,6 @@ async def get_historico(x_user_email: Optional[str] = Header(None), db: Session 
             "value": round(item.patrimonio, 2) if item.patrimonio is not None else 0.0
         })
 
-    # === MERGE DO PONTO DE HOJE (AO VIVO) ===
-    # Garante que o último ponto do gráfico nunca fique desatualizado em
-    # relação ao card de Patrimônio Total, sem gravar snapshots extras no banco.
     from services.analytics.snapshot_service import calcular_snapshot_atual
     hoje_str = datetime.now().strftime("%Y-%m-%d")
 
@@ -241,22 +238,23 @@ async def get_historico(x_user_email: Optional[str] = Header(None), db: Session 
         ponto_hoje = {"date": hoje_str, "value": round(dados_ao_vivo["patrimonio"], 2)}
 
         if historico_formatado and historico_formatado[-1]["date"] == hoje_str:
-            # já existe snapshot de hoje (ex: scheduler já rodou) -> substitui pelo valor ao vivo
             historico_formatado[-1] = ponto_hoje
         else:
-            # ainda não há snapshot hoje -> acrescenta o ponto vivo no final
             historico_formatado.append(ponto_hoje)
     except Exception as e:
         logger.warning(f"⚠️ Falha ao calcular ponto ao vivo do histórico (usuário {usuario.id}): {e}")
-        # Em caso de erro, segue só com o histórico salvo — não quebra a rota.
 
     if not historico_formatado:
         return []
 
-    from services.analytics.comparison_service import gerar_comparativo
-    comparativo = gerar_comparativo(historico_formatado)
-
-    return comparativo
+    try:
+        from services.analytics.comparison_service import gerar_comparativo
+        comparativo = gerar_comparativo(historico_formatado)
+        return comparativo
+    except Exception as e:
+        logger.error(f"❌ Falha ao gerar comparativo para usuário {usuario.id}: {e}", exc_info=True)
+        # Nunca deixa o 500 estourar sem CORS -- devolve o histórico bruto como fallback
+        return historico_formatado
 
 
 @app.get("/benchmark")
@@ -336,3 +334,13 @@ async def sincronizar_historico(background_tasks: BackgroundTasks, x_user_email:
     from popular_historico import processar_usuario_historico
     background_tasks.add_task(processar_usuario_historico, usuario.id)
     return {"status": "Sincronização histórica mapeada e enviada para segundo plano."}
+
+@app.post("/historico/recalcular-total")
+async def recalcular_historico_total(x_user_email: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    usuario = obtener_usuario_por_email(db, x_user_email)
+
+    from services.analytics.snapshot_service import recalcular_historico_completo
+    recalcular_historico_completo(usuario_id=usuario.id)
+
+    # Retorna o histórico já atualizado, reaproveitando a mesma rota /historico
+    return await get_historico(x_user_email=x_user_email, db=db)

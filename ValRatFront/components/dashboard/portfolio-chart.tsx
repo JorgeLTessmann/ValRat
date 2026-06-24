@@ -52,19 +52,16 @@ export function PortfolioChart({ data, isVisible = true, onDataRefresh }: Portfo
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://valrat.onrender.com'
       const headers = { 'X-User-Email': userEmail }
 
-      // 1. Força a geração de um snapshot novo (patrimônio recalculado com TODOS os ativos)
-      const snapshotResp = await fetch(`${baseUrl}/forcar-snapshot`, { method: 'GET', headers })
-      if (!snapshotResp.ok) {
-        throw new Error(`Falha ao gerar snapshot (status ${snapshotResp.status})`)
+      // Limpa TODO o histórico salvo e regenera do zero, considerando
+      // todos os ativos atuais (cripto, ações, renda fixa). Diferente de
+      // /forcar-snapshot, que apenas ACRESCENTA um snapshot novo --
+      // esta rota evita acumular registros duplicados a cada clique.
+      const recalculoResp = await fetch(`${baseUrl}/historico/recalcular-total`, { method: 'POST', headers })
+      if (!recalculoResp.ok) {
+        throw new Error(`Falha ao recalcular histórico (status ${recalculoResp.status})`)
       }
 
-      // 2. Rebusca o histórico inteiro já atualizado
-      const historicoResp = await fetch(`${baseUrl}/historico`, { method: 'GET', headers })
-      if (!historicoResp.ok) {
-        throw new Error(`Falha ao buscar histórico (status ${historicoResp.status})`)
-      }
-
-      const historicoNovo = await historicoResp.json()
+      const historicoNovo = await recalculoResp.json()
 
       // O backend retorna { date, carteira, cdi, ibov } (gerar_comparativo) -- mapeia para o shape do gráfico
       const dadosFormatados = (Array.isArray(historicoNovo) ? historicoNovo : []).map((item: any) => ({
