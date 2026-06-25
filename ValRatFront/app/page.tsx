@@ -23,7 +23,7 @@ import {
 import { CompraModal } from '@/components/dashboard/compra-modal'
 import { RendimentoModal } from '@/components/dashboard/rendimento-modal'
 import { RetiradaModal } from '@/components/dashboard/retirada-modal'
-import { BenchmarkCard } from '@/components/dashboard/benchmark-card'
+import { AlocacaoClasseCard } from '@/components/dashboard/benchmark-card'
 import { useAuth } from '@/hooks/use-auth'
 import {
   Card,
@@ -113,7 +113,7 @@ export default function DashboardPage() {
 
     loadResumo();
   }, [isAuthenticated, currentUser?.email]);
-  
+
   const [isCadastro, setIsCadastro] = useState(false)
   const [authForm, setAuthForm] = useState({ nome: '', email: '', senha: '' })
   const [authError, setAuthError] = useState('')
@@ -396,43 +396,45 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-1 space-y-6">
-            <AssetAllocation allocations={portfolio?.allocations ?? []} isLoading={false} />
-            <BenchmarkCard
-              carteira={benchmarks?.carteira ?? 0}
-              cdi={benchmarks?.cdi ?? 0}
-              selic={benchmarks?.selic ?? 0}
-              ibov={benchmarks?.ibov ?? 0}
+            <AlocacaoClasseCard
+              isLoading={portfolioLoading}
+              classes={
+                portfolio?.allocations?.map((alloc: any) => ({
+                  label: alloc.classe || alloc.name || alloc.label, // Garante pegar a propriedade certa vinda do backend
+                  value: alloc.percentual || alloc.percentage || alloc.value || 0
+                })) || []
+              }
             />
-          </div>
-          <div className="lg:col-span-2">
-            <TransactionLedger transactions={portfolio?.transactions ?? []} isLoading={false} />
-          </div>
-        </div>
-
-        <div className="mb-8">
-          <HoldingsTable assets={(portfolio?.assets ?? []) as any} />
-        </div>
-
-        <footer className="mt-12 pt-8 border-t border-border/50">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-primary">Val</span>
-              <span className="font-bold text-foreground">Rat</span>
-              <span>© 2026</span>
+            <div className="lg:col-span-2">
+              <TransactionLedger transactions={portfolio?.transactions ?? []} isLoading={false} />
             </div>
-            <p className="text-center sm:text-right">Dados de mercado podem ter atraso. Não é recomendação de investimento.</p>
           </div>
-        </footer>
-      </div>
 
-      <CompraModal open={openCompra} onClose={() => setOpenCompra(false)} onSuccess={() => mutate()} />
-      <RendimentoModal open={isRendimentoOpen} onOpenChange={setIsRendimentoOpen} />
-      <RetiradaModal
-        open={openRetirada}
-        onClose={() => setOpenRetirada(false)}
-        onSuccess={() => mutate()}
-        assets={(portfolio?.assets ?? []) as any}
-      />
+          <div className="mb-8">
+            <HoldingsTable assets={(portfolio?.assets ?? []) as any} />
+          </div>
+
+          <footer className="mt-12 pt-8 border-t border-border/50">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-primary">Val</span>
+                <span className="font-bold text-foreground">Rat</span>
+                <span>© 2026</span>
+              </div>
+              <p className="text-center sm:text-right">Dados de mercado podem ter atraso. Não é recomendação de investimento.</p>
+            </div>
+          </footer>
+        </div>
+
+        <CompraModal open={openCompra} onClose={() => setOpenCompra(false)} onSuccess={() => mutate()} />
+        <RendimentoModal open={isRendimentoOpen} onOpenChange={setIsRendimentoOpen} />
+        <RetiradaModal
+          open={openRetirada}
+          onClose={() => setOpenRetirada(false)}
+          onSuccess={() => mutate()}
+          assets={(portfolio?.assets ?? []) as any}
+        />
+      </div>
     </div>
   )
 }
