@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 from typing import Optional
 from datetime import datetime
 
-
 from fastapi import FastAPI, Header, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
@@ -109,7 +108,23 @@ def obtener_usuario_por_email(db: Session, email: Optional[str]):
     email_limpo = email.strip()
     usuario = db.query(Usuario).filter(Usuario.email == email_limpo).first()
 
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+
     return usuario
+
+# =========================================================================
+# FUNÇÃO AUXILIAR PARA EVITAR QUE ERROS DE IMPORT CIRCULAR QUEBREM A COMPRA
+# =========================================================================
+def safe_recalcular_historico(usuario_id: int, data_referencia: str):
+    """Executa o recálculo do histórico de forma segura prevenindo loops de importação."""
+    try:
+        from services.analytics.snapshot_service import recalcular_historico_a_partir_de
+        recalcular_historico_a_partir_de(usuario_id, data_referencia)
+    except ImportError as ie:
+        logger.error(f"⚠️ Erro de importação ao tentar recalcular histórico (provável import circular): {ie}")
+    except Exception as e:
+        logger.error(f"❌ Erro genérico ao rodar recalcular_historico_a_partir_de: {e}")
 
 # =========================
 # ROTAS ENDPOINTS
@@ -146,7 +161,7 @@ async def get_carteira(x_user_email: Optional[str] = Header(None), db: Session =
 @app.post("/compras")
 async def post_compras(
     compra: CompraModel,
-    background_tasks: BackgroundTasks,   # ← adicionar este parâmetro
+    background_tasks: BackgroundTasks,
     x_user_email: Optional[str] = Header(None),
     db: Session = Depends(get_db)
 ):
@@ -160,13 +175,15 @@ async def post_compras(
             quantidade=compra.quantidade,
             plataforma=compra.plataforma
         )
-        if "erro" in resultado:
+        if resultado and "erro" in resultado:
             raise HTTPException(status_code=400, detail=resultado["erro"])
 
-        from services.analytics.snapshot_service import recalcular_historico_a_partir_de
-        background_tasks.add_task(recalcular_historico_a_partir_de, usuario.id, compra.data_compra)
+        # Dispara o recálculo via BackgroundTask isolada e segura
+        background_tasks.add_task(safe_recalcular_historico, usuario.id, str(compra.data_compra))
 
         return resultado
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Falha no processamento de ordem de compra: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Erro interno de processamento: {str(e)}")
@@ -196,31 +213,39 @@ async def post_renda_fixa(
     db: Session = Depends(get_db)
 ):
     usuario = obtener_usuario_por_email(db, x_user_email)
-    resultado = cadastrar_renda_fixa(
-        usuario_id=usuario.id,
-        nome_aplicacao=renda_fixa.nome_aplicacao,
-        valor_applied=renda_fixa.valor_investido,
-        data_aplicacao=renda_fixa.data_compra,
-        data_vencimento=renda_fixa.data_vencimento,
-        tipo_ativo=renda_fixa.tipo_renda_fixa,
-        indexador=renda_fixa.indexador,
-        taxa_contratada=renda_fixa.taxa_contratada,
-        tem_carencia=renda_fixa.tem_carencia,
-        data_carencia=renda_fixa.data_carencia,
-        plataforma=renda_fixa.plataforma
-    )
+    try:
+        resultado = cadastrar_renda_fixa(
+            usuario_id=usuario.id,
+            nome_aplicacao=renda_fixa.nome_aplicacao,
+            valor_applied=renda_fixa.valor_investido,
+            data_aplicacao=renda_fixa.data_compra,
+            data_vencimento=renda_fixa.data_vencimento,
+            tipo_ativo=renda_fixa.tipo_renda_fixa,
+            indexador=renda_fixa.indexador,
+            taxa_contratada=renda_fixa.taxa_contratada,
+            tem_carencia=renda_fixa.tem_carencia,
+            data_carencia=renda_fixa.data_carencia,
+            plataforma=renda_fixa.plataforma
+        )
 
-    from services.analytics.snapshot_service import recalcular_historico_a_partir_de
-    background_tasks.add_task(recalcular_historico_a_partir_de, usuario.id, renda_fixa.data_compra)
+        if resultado and "erro" in resultado:
+            raise HTTPException(status_code=400, detail=resultado["erro"])
 
-    return resultado
+        # Dispara o recálculo de forma assíncrona e protegida
+        background_tasks.add_task(safe_recalcular_historico, usuario.id, str(renda_fixa.data_compra))
+
+        return resultado
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Falha no cadastro de renda fixa: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Erro interno de processamento: {str(e)}")
 
 
 @app.get("/historico")
 async def get_historico(x_user_email: Optional[str] = Header(None), db: Session = Depends(get_db)):
     usuario = obtener_usuario_por_email(db, x_user_email)
 
-    # Busca o que já existe salvo no banco imediatamente (nunca bloqueia)
     historico = db.query(HistoricoPatrimonio)\
                   .filter(HistoricoPatrimonio.usuario_id == usuario.id)\
                   .order_by(HistoricoPatrimonio.data.asc()).all()
@@ -232,7 +257,6 @@ async def get_historico(x_user_email: Optional[str] = Header(None), db: Session 
             "value": round(item.patrimonio, 2) if item.patrimonio is not None else 0.0
         })
 
-    # Adiciona o ponto dinâmico de hoje ("ao vivo") no final da lista
     from services.analytics.snapshot_service import calcular_snapshot_atual
     hoje_str = datetime.now().strftime("%Y-%m-%d")
 
@@ -336,10 +360,14 @@ async def recalcular_historico(
 ):
     usuario = obtener_usuario_por_email(db, x_user_email)
     
-    from services.analytics.snapshot_service import recalcular_historico_total_do_zero
-    background_tasks.add_task(recalcular_historico_total_do_zero, usuario.id)
+    try:
+        from services.analytics.snapshot_service import recalcular_historico_total_do_zero
+        background_tasks.add_task(recalcular_historico_total_do_zero, usuario.id)
+    except Exception as e:
+        logger.error(f"❌ Erro ao iniciar recálculo total: {e}")
     
     return {"status": "recalculo_total_iniciado"}
+
 
 @app.get("/historico/sincronizar", status_code=202)
 async def sincronizar_historico_auto(
@@ -353,7 +381,10 @@ async def sincronizar_historico_auto(
     """
     usuario = obtener_usuario_por_email(db, x_user_email)
     
-    from services.analytics.snapshot_service import recalcular_historico_incremental
-    background_tasks.add_task(recalcular_historico_incremental, usuario.id)
+    try:
+        from services.analytics.snapshot_service import recalcular_historico_incremental
+        background_tasks.add_task(recalcular_historico_incremental, usuario.id)
+    except Exception as e:
+        logger.error(f"❌ Erro ao iniciar sincronização incremental: {e}")
     
     return {"status": "sync_started"}
