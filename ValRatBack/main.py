@@ -346,3 +346,20 @@ async def recalcular_historico_total(
     background_tasks.add_task(recalcular_historico_incremental, usuario.id)
 
     return {"status": "processing", "mensagem": "O recálculo do histórico foi iniciado em segundo plano."}
+
+@app.get("/historico/sincronizar", status_code=202)
+async def sincronizar_historico_auto(
+    background_tasks: BackgroundTasks, 
+    x_user_email: Optional[str] = Header(None), 
+    db: Session = Depends(get_db)
+):
+    """
+    Rota acionada automaticamente pelo DashboardHeader ao carregar a página.
+    Verifica e sincroniza pontos faltantes de forma assíncrona.
+    """
+    usuario = obtener_usuario_por_email(db, x_user_email)
+    
+    from services.analytics.snapshot_service import recalcular_historico_incremental
+    background_tasks.add_task(recalcular_historico_incremental, usuario.id)
+    
+    return {"status": "sync_started"}
