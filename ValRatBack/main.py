@@ -329,23 +329,17 @@ async def login_usuario(dados: LoginModel, db: Session = Depends(get_db)):
 
 
 @app.post("/historico/recalcular-total", status_code=202)
-async def recalcular_historico_total(
+async def recalcular_historico(
     background_tasks: BackgroundTasks, 
     x_user_email: Optional[str] = Header(None), 
     db: Session = Depends(get_db)
 ):
-    """
-    Dispara o recálculo pesado de forma assíncrona em segundo plano.
-    Não trava a rota, não impede o F5 e libera a UI imediatamente.
-    """
     usuario = obtener_usuario_por_email(db, x_user_email)
-
-    from services.analytics.snapshot_service import recalcular_historico_incremental
     
-    # Adiciona a tarefa pesada para rodar em background de forma limpa
-    background_tasks.add_task(recalcular_historico_incremental, usuario.id)
-
-    return {"status": "processing", "mensagem": "O recálculo do histórico foi iniciado em segundo plano."}
+    from services.analytics.snapshot_service import recalcular_historico_total_do_zero
+    background_tasks.add_task(recalcular_historico_total_do_zero, usuario.id)
+    
+    return {"status": "recalculo_total_iniciado"}
 
 @app.get("/historico/sincronizar", status_code=202)
 async def sincronizar_historico_auto(
