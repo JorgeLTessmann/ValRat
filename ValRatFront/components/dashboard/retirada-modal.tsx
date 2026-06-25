@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth } from '@/hooks/use-auth'
 
 import {
     Dialog,
@@ -44,6 +45,8 @@ export function RetiradaModal({
     onSuccess,
     assets
 }: Props) {
+
+    const { currentUser } = useAuth()
 
     const [ticker, setTicker] = useState('')
     const [quantidade, setQuantidade] = useState(1)
@@ -102,17 +105,27 @@ export function RetiradaModal({
             return
         }
 
+        const userEmail = currentUser?.email ?? null
+
+        if (!userEmail) {
+            setErro('Usuário não identificado. Faça login novamente.')
+            return
+        }
+
         try {
 
             setSalvando(true)
 
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://valrat.onrender.com'
+
             const response = await fetch(
-                'https://valrat.onrender.com/retiradas',
+                `${baseUrl}/retiradas`,
                 {
                     method: 'POST',
 
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'X-User-Email': userEmail
                     },
 
                     body: JSON.stringify({
