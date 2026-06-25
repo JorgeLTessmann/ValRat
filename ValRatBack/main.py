@@ -220,6 +220,7 @@ async def post_renda_fixa(
 async def get_historico(x_user_email: Optional[str] = Header(None), db: Session = Depends(get_db)):
     usuario = obtener_usuario_por_email(db, x_user_email)
 
+    # Busca o que já existe salvo no banco imediatamente (nunca bloqueia)
     historico = db.query(HistoricoPatrimonio)\
                   .filter(HistoricoPatrimonio.usuario_id == usuario.id)\
                   .order_by(HistoricoPatrimonio.data.asc()).all()
@@ -231,6 +232,7 @@ async def get_historico(x_user_email: Optional[str] = Header(None), db: Session 
             "value": round(item.patrimonio, 2) if item.patrimonio is not None else 0.0
         })
 
+    # Adiciona o ponto dinâmico de hoje ("ao vivo") no final da lista
     from services.analytics.snapshot_service import calcular_snapshot_atual
     hoje_str = datetime.now().strftime("%Y-%m-%d")
 
@@ -243,20 +245,17 @@ async def get_historico(x_user_email: Optional[str] = Header(None), db: Session 
         else:
             historico_formatado.append(ponto_hoje)
     except Exception as e:
-        logger.warning(f"⚠️ Falha ao calcular ponto ao vivo do histórico (usuário {usuario.id}): {e}")
+        logger.warning(f"⚠️ Falha ao calcular ponto ao vivo do histórico: {e}")
 
     if not historico_formatado:
         return []
 
     try:
         from services.analytics.comparison_service import gerar_comparativo
-        comparativo = gerar_comparativo(historico_formatado)
-        return comparativo
+        return gerar_comparativo(historico_formatado)
     except Exception as e:
-        logger.error(f"❌ Falha ao gerar comparativo para usuário {usuario.id}: {e}", exc_info=True)
-        # Nunca deixa o 500 estourar sem CORS -- devolve o histórico bruto como fallback
+        logger.error(f"❌ Falha ao gerar comparativo: {e}")
         return historico_formatado
-
 
 @app.get("/benchmark")
 async def benchmark(x_user_email: Optional[str] = Header(None), db: Session = Depends(get_db)):
@@ -329,11 +328,21 @@ async def login_usuario(dados: LoginModel, db: Session = Depends(get_db)):
     return {"id": usuario.id, "nome": usuario.nome, "email": usuario.email}
 
 
-@app.post("/historico/recalcular-total")
-async def recalcular_historico_total(x_user_email: Optional[str] = Header(None), db: Session = Depends(get_db)):
+@app.post("/historico/recalcular-total", status_code=202)
+async def recalcular_historico_total(
+    background_tasks: BackgroundTasks, 
+    x_user_email: Optional[str] = Header(None), 
+    db: Session = Depends(get_db)
+):
+    """
+    Dispara o recálculo pesado de forma assíncrona em segundo plano.
+    Não trava a rota, não impede o F5 e libera a UI imediatamente.
+    """
     usuario = obtener_usuario_por_email(db, x_user_email)
 
-    from services.analytics.snapshot_service import recalcular_historico_completo
-    recalcular_historico_completo(usuario_id=usuario.id)
+    from services.analytics.snapshot_service import recalcular_historico_incremental
+    
+    # Adiciona a tarefa pesada para rodar em background de forma limpa
+    background_tasks.add_task(recalcular_historico_incremental, usuario.id)
 
-    return await get_historico(x_user_email=x_user_email, db=db)
+    return {"status": "processing", "mensagem": "O recálculo do histórico foi iniciado em segundo plano."}
