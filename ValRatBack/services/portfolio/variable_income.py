@@ -2,7 +2,8 @@
 
 import logging
 from datetime import date
-from services.price_service import buscar_preco, calcular_rentabilidade
+from services.market.cotacao_cache_service import buscar_preco_com_cache
+from services.price_service import calcular_rentabilidade
 from services.imposto_service import calcular_ir
 
 logger = logging.getLogger(__name__)
@@ -35,8 +36,7 @@ def calcular_renda_variavel(compras, data_referencia: date = None):
             continue
 
         tipo_busca = "cripto" if compra.categoria == "cripto" else "acao"
-        preco_atual = buscar_preco(tipo_busca, compra.ticker, data_busca_str)
-
+        preco_atual = buscar_preco_com_cache(tipo_busca, compra.ticker, data_busca_str)
         if preco_atual is None:
             logger.warning(
                 f"❌ Preço não encontrado para {compra.ticker} (tipo: {tipo_busca}, data: {data_busca_str or 'atual'})"

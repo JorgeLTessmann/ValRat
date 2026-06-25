@@ -329,13 +329,6 @@ async def login_usuario(dados: LoginModel, db: Session = Depends(get_db)):
     return {"id": usuario.id, "nome": usuario.nome, "email": usuario.email}
 
 
-@app.get("/historico/sincronizar")
-async def sincronizar_historico(background_tasks: BackgroundTasks, x_user_email: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    usuario = obtener_usuario_por_email(db, x_user_email)
-    from popular_historico import processar_usuario_historico
-    background_tasks.add_task(processar_usuario_historico, usuario.id)
-    return {"status": "Sincronização histórica mapeada e enviada para segundo plano."}
-
 @app.post("/historico/recalcular-total")
 async def recalcular_historico_total(x_user_email: Optional[str] = Header(None), db: Session = Depends(get_db)):
     usuario = obtener_usuario_por_email(db, x_user_email)
@@ -343,5 +336,4 @@ async def recalcular_historico_total(x_user_email: Optional[str] = Header(None),
     from services.analytics.snapshot_service import recalcular_historico_completo
     recalcular_historico_completo(usuario_id=usuario.id)
 
-    # Retorna o histórico já atualizado, reaproveitando a mesma rota /historico
     return await get_historico(x_user_email=x_user_email, db=db)
