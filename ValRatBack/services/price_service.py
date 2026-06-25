@@ -130,16 +130,33 @@ def buscar_preco(
                 buscar_preco_atual_cripto_brl,
                 buscar_preco_historico_cripto_brl
             )
-            print(f"[DEBUG CRIPTO] tipo={tipo} codigo={codigo} data={data} data_type={type(data)}")
+            
+            # Normaliza o ticker para garantir (ex: BTC-BRL ou BTC)
+            ticker_busca = codigo.upper()
+            
+            print(f"[DEBUG CRIPTO] tipo={tipo} codigo={ticker_busca} data={data} data_type={type(data)}")
+            
             if data:
-                preco = buscar_preco_historico_cripto_brl(codigo, data)
-                print(f"[DEBUG CRIPTO] preco retornado={preco}")
+                # 1. Tenta buscar o histórico normal na Binance
+                preco = buscar_preco_historico_cripto_brl(ticker_busca, data)
+                print(f"[DEBUG CRIPTO] preco Binance retornado={preco}")
+                
+                # 2. Se a Binance falhar (ex: datas antes de 2017), usa o Fallback do Yahoo Finance
+                if preco is None:
+                    print(f"[DEBUG CRIPTO] Sem dados na Binance para {ticker_busca} em {data}. Tentando Yahoo Finance...")
+                    # O Yahoo usa o padrão BTC-BRL ou BTC-USD
+                    ticker_yahoo = f"{ticker_busca}-BRL" if "-" not in ticker_busca else ticker_busca
+                    preco = _yahoo_preco_historico(ticker_yahoo, data)
+                    
+                # 3. Se ainda assim falhar (ou se for antes de 2010), retorna None para o service injetar o preço de compra
                 if preco is None:
                     data_busca = datetime.strptime(data, "%Y-%m-%d").date()
                     if data_busca >= date.today():
-                        preco = buscar_preco_atual_cripto_brl(codigo)
+                        preco = buscar_preco_atual_cripto_brl(ticker_busca)
+                        
                 return preco
-            return buscar_preco_atual_cripto_brl(codigo)
+                
+            return buscar_preco_atual_cripto_brl(ticker_busca)
         except Exception as e:
             print(f"[DEBUG CRIPTO] EXCEPTION: {type(e).__name__}: {e}")
             import traceback

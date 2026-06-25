@@ -13,11 +13,8 @@ def calcular_renda_variavel(compras, data_referencia: date = None):
     if data_referencia is None:
         data_referencia = date.today()
 
-    # Só passamos uma data explícita para buscar_preco() quando o cálculo
-    # NÃO é para hoje — preserva o comportamento atual (preço em tempo real)
-    # no caminho mais usado, e usa preço histórico só quando recalculando o passado.
+    # Define se estamos em um fluxo de recálculo do passado
     eh_recalculo_retroativo = data_referencia < date.today()
-    data_busca_str = data_referencia.isoformat() if eh_recalculo_retroativo else None
 
     logger.info(
         f"Calculando renda variável para {len(compras)} compras "
@@ -30,19 +27,35 @@ def calcular_renda_variavel(compras, data_referencia: date = None):
     total_ir = 0
 
     for compra in compras:
-        # Ignora ativos que ainda não existiam na data de referência
+        # 1. Valida se o ativo já havia sido comprado na data de referência
         data_compra = date.fromisoformat(compra.data_compra)
         if data_compra > data_referencia:
             continue
 
-        tipo_busca = "cripto" if compra.categoria == "cripto" else "acao"
+        # 2. Identifica e padroniza se o ativo pertence ao universo Cripto
+        eh_cripto = (compra.tipo == "cripto" or getattr(compra, "categoria", "") == "cripto")
+        tipo_busca = "cripto" if eh_cripto else "acao"
+
+        # 3. Monta a string de data correta para a busca
+        if eh_cripto:
+            # Cripto sempre exige a string da data para varrer o histórico correto (ex: 2012-06-01)
+            data_busca_str = data_referencia.strftime("%Y-%m-%d") if hasattr(data_referencia, "strftime") else str(data_referencia)
+            logger.debug(f"[DEBUG CRIPTO] Chamando cache para {compra.ticker} na data {data_busca_str}")
+        else:
+            # Ações e FIIs preservam None para preço em tempo real se for hoje, ou a data se for retroativo
+            data_busca_str = data_referencia.isoformat() if eh_recalculo_retroativo else None
+
+        # 4. Faz uma ÚNICA chamada ao serviço de preço com cache
         preco_atual = buscar_preco_com_cache(tipo_busca, compra.ticker, data_busca_str)
+
+        # 5. Salvaguarda: se o preço histórico falhar ou não existir na época, assume o preço de compra original
         if preco_atual is None:
             logger.warning(
                 f"❌ Preço não encontrado para {compra.ticker} (tipo: {tipo_busca}, data: {data_busca_str or 'atual'})"
             )
             preco_atual = compra.preco_compra
 
+        # 6. Cálculos de rentabilidade e impostos
         rent = calcular_rentabilidade(
             tipo=tipo_busca,
             preco_compra=compra.preco_compra,
