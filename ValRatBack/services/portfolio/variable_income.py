@@ -41,7 +41,7 @@ def calcular_renda_variavel(compras, data_referencia: date = None):
             logger.warning(
                 f"❌ Preço não encontrado para {compra.ticker} (tipo: {tipo_busca}, data: {data_busca_str or 'atual'})"
             )
-            continue
+            preco_atual = compra.preco_compra
 
         rent = calcular_rentabilidade(
             tipo=tipo_busca,

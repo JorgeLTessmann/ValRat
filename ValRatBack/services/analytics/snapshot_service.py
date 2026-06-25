@@ -88,6 +88,9 @@ def recalcular_historico_a_partir_de(usuario_id: int, data_compra_str: str):
             datas_para_recalcular.append(cursor)
             cursor = cursor + relativedelta(months=1)
 
+        if not datas_para_recalcular or datas_para_recalcular[-1] < hoje:
+            datas_para_recalcular.append(hoje)
+
         for data_ponto in datas_para_recalcular:
             portfolio_no_mes = montar_portfolio_em_data(usuario_id, data_ponto)
 
