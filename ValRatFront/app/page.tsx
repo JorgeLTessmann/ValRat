@@ -142,128 +142,135 @@ export default function DashboardPage() {
 
   // Interface de Autenticação / Seletor de Perfis
   if (!isAuthenticated) {
+    // Dashboard Completa Ativa
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center py-12 px-4">
-        <div className="text-center space-y-6 max-w-md mx-auto w-full">
-          <div className="flex justify-center">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-              <Shield className="w-10 h-10 text-primary" />
-            </div>
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">ValRat</h1>
-            <p className="text-muted-foreground">Quem está investindo hoje?</p>
+      <div className="min-h-screen bg-background">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col min-h-screen">
+
+          <DashboardHeader userName={userName} />
+
+          <div className="mb-8">
+            <StatsGrid
+              totalBalance={resumoData?.totalBalance ?? portfolio?.totalBalance ?? 0}
+              totalInvested={resumoData?.totalInvested ?? portfolio?.totalInvested ?? 0}
+              profitLoss={resumoData?.profitLoss ?? portfolio?.profitLoss ?? 0}
+              percentChange={resumoData?.percentChange ?? portfolio?.percentChange ?? 0}
+              isLoading={false}
+            />
           </div>
 
-          {/* Lista de Perfis Pré-Logados */}
-          {savedProfiles.length > 0 && !isCadastro && (
-            <div className="space-y-2 text-left">
-              <label className="text-xs font-semibold text-muted-foreground px-1">Perfis salvos neste dispositivo</label>
-              <div className="grid grid-cols-1 gap-2">
-                {savedProfiles.map((perfil) => (
-                  <div
-                    key={perfil.email}
-                    onClick={() => switchProfile(perfil.email)}
-                    className="flex items-center justify-between p-3 bg-card border border-border/60 rounded-xl hover:border-primary/50 transition-all cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary shrink-0">
-                        {perfil.nome.charAt(0).toUpperCase()}
+          {/* PRIMEIRA SEÇÃO: Gráfico + Ações Rápidas e Resumo */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div className="lg:col-span-2 space-y-6">
+              <WalletCard
+                totalBalance={portfolio?.totalBalance ?? resumoData?.totalBalance ?? 0}
+                profitLoss={portfolio?.profitLoss ?? resumoData?.profitLoss ?? 0}
+                percentChange={portfolio?.percentChange ?? resumoData?.percentChange ?? 0}
+                historicalData={portfolio?.historicalData ?? []}
+                isLoading={false}
+              />
+            </div>
+
+            <div className="lg:col-span-1 space-y-6">
+              <QuickActions
+                onComprarClick={() => setOpenCompra(true)}
+                onSimularRendimentoClick={() => setIsRendimentoOpen(true)}
+                onVenderClick={() => setOpenRetirada(true)}
+              />
+
+              <Card className="border-border/50 shadow-sm">
+                <CardHeader>
+                  <CardTitle>Resumo Geral</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Wallet className="w-5 h-5 text-primary" />
+                        <span>Patrimônio</span>
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-medium text-sm text-foreground truncate">{perfil.nome}</p>
-                        <p className="text-xs text-muted-foreground truncate">{perfil.email}</p>
-                      </div>
+                      <span className="font-semibold">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(portfolio?.totalBalance ?? resumoData?.totalBalance ?? 0)}
+                      </span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        removeProfile(perfil.email)
-                      }}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Landmark className="w-5 h-5 text-primary" />
+                        <span>Investido</span>
+                      </div>
+                      <span className="font-semibold">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(portfolio?.totalInvested ?? resumoData?.totalInvested ?? 0)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <TrendingUp className="w-5 h-5 text-primary" />
+                        <span>Lucro</span>
+                      </div>
+                      <span className={`font-semibold ${(portfolio?.profitLoss ?? resumoData?.profitLoss ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(portfolio?.profitLoss ?? resumoData?.profitLoss ?? 0)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <PieChart className="w-5 h-5 text-primary" />
+                        <span>Ativos</span>
+                      </div>
+                      <span className="font-semibold">{portfolio?.assets?.length ?? 0}</span>
+                    </div>
                   </div>
-                ))}
-              </div>
+                </CardContent>
+              </Card>
             </div>
-          )}
+          </div>
 
-          <Card className="border-border/50 shadow-sm text-left">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <User className="w-4 h-4 text-primary" />
-                {isCadastro ? 'Criar uma nova conta' : savedProfiles.length > 0 ? 'Acessar com outra conta' : 'Acesse sua conta'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleAuthSubmit} className="space-y-4">
-                {isCadastro && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground">Nome</label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full bg-secondary/50 border border-border rounded-md p-2 text-sm text-foreground focus:outline-none focus:border-primary"
-                      value={authForm.nome}
-                      onChange={e => setAuthForm({ ...authForm, nome: e.target.value })}
-                    />
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Email</label>
-                  <input
-                    type="email"
-                    required
-                    className="w-full bg-secondary/50 border border-border rounded-md p-2 text-sm text-foreground focus:outline-none focus:border-primary"
-                    value={authForm.email}
-                    onChange={e => setAuthForm({ ...authForm, email: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Senha</label>
-                  <input
-                    type="password"
-                    required
-                    className="w-full bg-secondary/50 border border-border rounded-md p-2 text-sm text-foreground focus:outline-none focus:border-primary"
-                    value={authForm.senha}
-                    onChange={e => setAuthForm({ ...authForm, senha: e.target.value })}
-                  />
-                </div>
+          {/* SEGUNDA SEÇÃO: Alocação por Classe de Ativos e Histórico de Transações lado a lado */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div className="lg:col-span-1 space-y-6">
+              <AssetAllocation allocations={portfolio?.allocations ?? []} isLoading={false} />
+              <AlocacaoClasseCard
+                isLoading={portfolioLoading}
+                classes={
+                  portfolio?.allocations?.map((alloc: any) => ({
+                    label: alloc.classe || alloc.name || alloc.label,
+                    value: alloc.percentual || alloc.percentage || alloc.value || 0
+                  })) || []
+                }
+              />
+            </div>
+            <div className="lg:col-span-2">
+              <TransactionLedger transactions={portfolio?.transactions ?? []} isLoading={false} />
+            </div>
+          </div>
 
-                {authError && <p className="text-xs text-red-500 font-medium">{authError}</p>}
+          {/* TERCEIRA SEÇÃO: Tabela de Ativos ocupando a largura total isolada */}
+          <div className="mb-8 w-full">
+            <HoldingsTable assets={(portfolio?.assets ?? []) as any} />
+          </div>
 
-                <Button type="submit" disabled={isLoadingAuth} className="w-full gap-2" size="lg">
-                  {isLoadingAuth ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  ) : (
-                    <>
-                      <LogIn className="w-4 h-4" />
-                      {isCadastro ? "Criar Conta" : "Conectar Conta"}
-                    </>
-                  )}
-                </Button>
-              </form>
-
-              <div className="text-center mt-4">
-                <button
-                  type="button"
-                  className="text-xs text-primary hover:underline"
-                  onClick={() => {
-                    setIsCadastro(!isCadastro)
-                    setAuthError('')
-                  }}
-                >
-                  {isCadastro ? "Já tem conta? Faça login" : "Não tem conta? Cadastre-se"}
-                </button>
+          {/* FOOTER: Empurrado para o final da página */}
+          <footer className="mt-auto pt-8 border-t border-border/50 w-full">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-primary">Val</span>
+                <span className="font-bold text-foreground">Rat</span>
+                <span>© 2026</span>
               </div>
-            </CardContent>
-          </Card>
-          <p className="text-xs text-muted-foreground">Versão de demonstração • Dados de mercado podem ter atraso</p>
+              <p className="text-center sm:text-right">Dados de mercado podem ter atraso. Não é recomendação de investimento.</p>
+            </div>
+          </footer>
+
         </div>
+
+        {/* Modais fora do fluxo do layout principal */}
+        <CompraModal open={openCompra} onClose={() => setOpenCompra(false)} onSuccess={() => mutate()} />
+        <RendimentoModal open={isRendimentoOpen} onOpenChange={setIsRendimentoOpen} />
+        <RetiradaModal
+          open={openRetirada}
+          onClose={() => setOpenRetirada(false)}
+          onSuccess={() => mutate()}
+          assets={(portfolio?.assets ?? []) as any}
+        />
       </div>
     )
   }
