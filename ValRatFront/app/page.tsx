@@ -24,6 +24,7 @@ import { CompraModal } from '@/components/dashboard/compra-modal'
 import { RetiradaModal } from '@/components/dashboard/retirada-modal'
 import { AlocacaoClasseCard } from '@/components/dashboard/benchmark-card'
 import { useAuth } from '@/hooks/use-auth'
+import { InventarioModal } from '@/components/dashboard/inventario-modal'
 import {
   Card,
   CardContent,
@@ -57,7 +58,7 @@ export default function DashboardPage() {
   const [isLoadingAuth, setIsLoadingAuth] = useState(false)
   const [openCompra, setOpenCompra] = useState(false)
   const [openRetirada, setOpenRetirada] = useState(false)
-
+  const [isInventarioOpen, setIsInventarioOpen] = useState(false)
   const [resumoData, setResumoData] = useState<any>(null)
   const [resumoLoading, setResumoLoading] = useState(true)
 
@@ -287,7 +288,7 @@ export default function DashboardPage() {
             />
           </div>
           <EmptyState onAddInvestment={() => setOpenCompra(true)} />
-          
+
           <footer className="mt-auto pt-8 border-t border-border/50">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
@@ -334,6 +335,7 @@ export default function DashboardPage() {
           <div className="lg:col-span-1 space-y-6">
             <QuickActions
               onComprarClick={() => setOpenCompra(true)}
+              onInventarioClick={() => setIsInventarioOpen(true)}
               onVenderClick={() => setOpenRetirada(true)}
             />
 
@@ -422,6 +424,10 @@ export default function DashboardPage() {
 
       {/* --- MODAIS --- */}
       <CompraModal open={openCompra} onClose={() => setOpenCompra(false)} onSuccess={() => mutate()} />
+      <InventarioModal
+        open={isInventarioOpen}
+        onOpenChange={setIsInventarioOpen}
+      />
       <RetiradaModal
         open={openRetirada}
         onClose={() => setOpenRetirada(false)}

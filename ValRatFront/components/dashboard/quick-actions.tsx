@@ -2,6 +2,7 @@
 
 import {
   Plus,
+  Boxes,
   Tag,
   type LucideIcon
 } from 'lucide-react'
@@ -19,6 +20,7 @@ interface QuickAction {
 
 interface QuickActionsProps {
   onComprarClick: () => void
+  onInventarioClick: () => void
   onVenderClick: () => void
 }
 
@@ -30,6 +32,11 @@ const quickActions: QuickAction[] = [
     isPrimary: true
   },
   {
+    id: 'inventory',
+    label: 'Inventário',
+    icon: Boxes
+  },
+  {
     id: 'sell',
     label: 'Vender Ativo',
     icon: Tag
@@ -38,13 +45,19 @@ const quickActions: QuickAction[] = [
 
 export function QuickActions({
   onComprarClick,
+  onInventarioClick,
   onVenderClick
 }: QuickActionsProps) {
 
   const handleAction = (actionId: string) => {
 
+
     if (actionId === 'buy' || actionId === 'deposit') {
       onComprarClick()
+    }
+
+    if (actionId === 'inventory') {
+      onInventarioClick()
     }
 
     if (actionId === 'sell') {
@@ -61,7 +74,7 @@ export function QuickActions({
       </CardHeader>
 
       <CardContent>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
 
           {quickActions.map((action) => (
 
