@@ -5,7 +5,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/use-auth'
-import { LogOut, User, Users } from 'lucide-react'
+import { LogOut, User, Users, Boxes } from 'lucide-react'
+import { InventarioModal } from '@/components/dashboard/inventario-modal'
 
 interface DashboardHeaderProps {
   userName?: string
@@ -18,6 +19,8 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
     label: 'Verificando...',
     isOpen: false
   })
+
+  const [inventarioOpen, setInventarioOpen] = useState(false)
 
   const getGreeting = () => {
     const hour = new Date().getHours()
@@ -126,6 +129,16 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setInventarioOpen(true)}
+            className="h-9 gap-2 border-border/60 text-xs font-semibold shadow-sm hover:bg-secondary transition-all"
+          >
+            <Boxes className="w-4 h-4 text-primary/70" />
+            <span className="hidden xs:inline">Inventário</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={logoutCurrent}
             className="h-9 gap-2 border-border/60 text-xs font-semibold shadow-sm hover:bg-secondary transition-all"
           >
@@ -135,6 +148,8 @@ export function DashboardHeader({ userName = 'Investidor' }: DashboardHeaderProp
           </Button>
         </div>
       </div>
+
+      <InventarioModal open={inventarioOpen} onOpenChange={setInventarioOpen} />
     </div>
   )
 }

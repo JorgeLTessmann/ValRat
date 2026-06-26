@@ -21,7 +21,6 @@ import {
   cadastrarUsuario
 } from '@/lib/api'
 import { CompraModal } from '@/components/dashboard/compra-modal'
-import { RendimentoModal } from '@/components/dashboard/rendimento-modal'
 import { RetiradaModal } from '@/components/dashboard/retirada-modal'
 import { AlocacaoClasseCard } from '@/components/dashboard/benchmark-card'
 import { useAuth } from '@/hooks/use-auth'
@@ -57,7 +56,6 @@ export default function DashboardPage() {
 
   const [isLoadingAuth, setIsLoadingAuth] = useState(false)
   const [openCompra, setOpenCompra] = useState(false)
-  const [isRendimentoOpen, setIsRendimentoOpen] = useState(false)
   const [openRetirada, setOpenRetirada] = useState(false)
 
   const [resumoData, setResumoData] = useState<any>(null)
@@ -336,7 +334,6 @@ export default function DashboardPage() {
           <div className="lg:col-span-1 space-y-6">
             <QuickActions
               onComprarClick={() => setOpenCompra(true)}
-              onSimularRendimentoClick={() => setIsRendimentoOpen(true)}
               onVenderClick={() => setOpenRetirada(true)}
             />
 
@@ -425,7 +422,6 @@ export default function DashboardPage() {
 
       {/* --- MODAIS --- */}
       <CompraModal open={openCompra} onClose={() => setOpenCompra(false)} onSuccess={() => mutate()} />
-      <RendimentoModal open={isRendimentoOpen} onOpenChange={setIsRendimentoOpen} />
       <RetiradaModal
         open={openRetirada}
         onClose={() => setOpenRetirada(false)}
