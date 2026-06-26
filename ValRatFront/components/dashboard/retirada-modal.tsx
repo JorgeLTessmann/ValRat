@@ -54,13 +54,33 @@ export function RetiradaModal({
     const [erro, setErro] = useState('')
     const [salvando, setSalvando] = useState(false)
 
+    // Agrupa os ativos por ticker, somando as cotas de todas as compras
+    // (ex: 3 compras de PETR4 em momentos diferentes -> 1 entrada com o total).
+    // Usado tanto para montar a lista do dropdown quanto para saber a
+    // quantidade REAL disponível do ativo selecionado -- antes, cada um
+    // desses dois pontos calculava isso de um jeito diferente, e por isso
+    // a quantidade exibida não batia com o total agrupado.
+    const ativosAgrupados = useMemo(() => {
+        return (assets || []).reduce((acc, asset) => {
+            if (!acc[asset.ticker]) {
+                acc[asset.ticker] = {
+                    ticker: asset.ticker,
+                    quantity: 0,
+                    currentPrice: asset.currentPrice
+                }
+            }
+
+            acc[asset.ticker].quantity += asset.quantity
+
+            return acc
+        }, {} as Record<string, Asset>)
+    }, [assets])
+
     const ativoSelecionado = useMemo(() => {
 
-        return (assets || []).find(
-            (asset) => asset.ticker === ticker
-        )
+        return ativosAgrupados[ticker]
 
-    }, [assets, ticker])
+    }, [ativosAgrupados, ticker])
 
     useEffect(() => {
 
@@ -201,26 +221,7 @@ export function RetiradaModal({
                             </SelectTrigger>
                             <SelectContent>
 
-                                {Object.values(
-
-                                    (assets || []).reduce((acc, asset) => {
-
-                                        if (!acc[asset.ticker]) {
-
-                                            acc[asset.ticker] = {
-                                                ticker: asset.ticker,
-                                                quantity: 0,
-                                                currentPrice: asset.currentPrice
-                                            }
-                                        }
-
-                                        acc[asset.ticker].quantity += asset.quantity
-
-                                        return acc
-
-                                    }, {} as Record<string, Asset>)
-
-                                ).map((asset) => (
+                                {Object.values(ativosAgrupados).map((asset) => (
 
                                     <SelectItem
                                         key={asset.ticker}
