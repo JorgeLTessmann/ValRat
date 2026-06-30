@@ -65,8 +65,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://val-rat.vercel.app"
-    ], 
+        "https://val-rat.vercel.app",
+    ],
+    allow_origin_regex=r"https://val-rat-.*\.vercel\.app|https://.*-jorgeltessmanns-projects\.vercel\.app",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
