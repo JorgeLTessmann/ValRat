@@ -39,7 +39,9 @@ const rotuloTipo: Record<string, string> = {
 }
 
 function LinhaAtivo({ ativo }: { ativo: AtivoInventario }) {
-  const isPositivo = ativo.lucro >= 0
+  const lucro = ativo.lucro ?? 0
+  const variacao = ativo.variacao ?? 0
+  const isPositivo = lucro >= 0
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-secondary/30 px-3 py-2.5">
@@ -77,7 +79,7 @@ function LinhaAtivo({ ativo }: { ativo: AtivoInventario }) {
             )}
           >
             {isPositivo ? "+" : ""}
-            {ativo.variacao.toFixed(2)}%
+            {variacao.toFixed(2)}%
           </span>
         </div>
       </div>
@@ -96,11 +98,11 @@ export function InventarioModal({ open, onOpenChange }: InventarioModalProps) {
     refetch,
   } = useInventario(open)
 
-  const isPositivoTotal = profitLoss >= 0
+  const isPositivoTotal = (profitLoss ?? 0) >= 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg border-border/60 bg-card p-6 relative overflow-hidden before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-gradient-to-r before:from-transparent before:via-primary/40 before:to-transparent">
+      <DialogContent className="sm:max-w-lg border-border/60 bg-card p-6 overflow-hidden before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-gradient-to-r before:from-transparent before:via-primary/40 before:to-transparent">
         <DialogHeader className="space-y-1">
           <div className="flex items-center justify-between gap-2 pr-6">
             <DialogTitle className="flex items-center gap-2 text-foreground font-bold tracking-tight">
@@ -169,7 +171,7 @@ export function InventarioModal({ open, onOpenChange }: InventarioModalProps) {
           {!isLoading && error && (
             <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-xs text-destructive">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              {error}
+              {typeof error === 'string' ? error : 'Erro ao carregar inventário'}
             </div>
           )}
 
@@ -180,7 +182,7 @@ export function InventarioModal({ open, onOpenChange }: InventarioModalProps) {
           )}
 
           {!error &&
-            ativos.map((ativo, i) => (
+            (ativos ?? []).map((ativo, i) => (
               <LinhaAtivo key={`${ativo.ticker}-${i}`} ativo={ativo} />
             ))}
         </div>

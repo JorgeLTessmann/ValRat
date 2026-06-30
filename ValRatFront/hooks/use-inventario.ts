@@ -10,8 +10,28 @@ export interface AtivoInventario {
   quantidade: number
   preco: number
   valorTotal: number
+  totalInvestido: number
   lucro: number
   variacao: number
+}
+
+interface AssetRaw {
+  id?: string
+  ticker?: string
+  name?: string
+  type?: string
+  quantity?: number
+  averagePrice?: number
+  currentPrice?: number
+  totalInvested?: number
+  currentValue?: number
+  grossValue?: number
+  ir?: number
+  profitLoss?: number
+  percentChange?: number
+  plataforma?: string
+  data_compra?: string
+  [key: string]: unknown
 }
 
 interface PortfolioResponse {
@@ -19,7 +39,7 @@ interface PortfolioResponse {
   totalInvested?: number
   profitLoss?: number
   percentChange?: number
-  assets?: Array<Record<string, unknown>>
+  assets?: AssetRaw[]
 }
 
 interface UseInventarioResult {
@@ -36,15 +56,16 @@ interface UseInventarioResult {
 /**
  * Normaliza um item de "assets" vindo da API.
  *
- * O backend não tem um schema fixo documentado para cada item de `assets`
- * (ele é montado por calcular_renda_variavel / calcular_renda_fixa_das_compras /
- * calcular_renda_fixa_das_aplicacoes). Os nomes de campo abaixo seguem o padrão
- * já usado em outros endpoints do mesmo backend (ex: /ativos/{ticker}/historico),
- * com fallbacks para variações comuns (camelCase vs snake_case).
+ * O backend (montar_portfolio em portfolio_service.py) retorna uma linha
+ * por COMPRA individual do ativo, com o shape confirmado em produção:
+ *   { ticker, name, type, quantity, averagePrice, currentPrice,
+ *     totalInvested, currentValue, grossValue, ir, profitLoss, percentChange }
  *
- * Se o shape real for diferente, esse é o único lugar que precisa mudar.
+ * Os nomes são em inglês (camelCase). Mantemos fallbacks em português/snake_case
+ * só por segurança, caso o backend mude no futuro, mas a prioridade é sempre
+ * o shape real confirmado.
  */
-function normalizarAtivo(raw: Record<string, unknown>): AtivoInventario {
+function normalizarAtivo(raw: AssetRaw): AtivoInventario {
   const getNum = (...keys: string[]) => {
     for (const key of keys) {
       const v = raw[key]
@@ -65,18 +86,80 @@ function normalizarAtivo(raw: Record<string, unknown>): AtivoInventario {
   }
 
   const ticker = getStr("ticker", "codigo", "symbol") || "—"
-  const nome = getStr("nome", "name", "descricao") || ticker
+  const nome = getStr("name", "nome", "descricao") || ticker
+
+  const quantidade = getNum("quantity", "quantidade", "qtd")
+  // Preço de mercado atual do ativo (não o preço médio de compra)
+  const preco = getNum("currentPrice", "preco_atual", "preco", "price")
+
+  // Valor de mercado atual da posição (quantidade * preço atual)
+  let valorTotal = getNum("currentValue", "valor_total", "valorTotal", "value", "total")
+  if (valorTotal === 0 && quantidade > 0 && preco > 0) {
+    valorTotal = quantidade * preco
+  }
+
+  // Quanto foi de fato investido nesse lote (preço de compra * quantidade)
+  const totalInvestido = getNum("totalInvested", "total_investido", "valor_investido")
+
+  const lucro = getNum("profitLoss", "lucro", "profit", "lucro_total")
+  const variacao = getNum("percentChange", "variacao", "variation", "percentual")
 
   return {
     ticker,
     nome,
-    tipo: getStr("tipo", "categoria", "type") || "outro",
-    quantidade: getNum("quantidade", "quantity", "qtd"),
-    preco: getNum("preco", "preco_atual", "price", "valorAtual"),
-    valorTotal: getNum("valor_total", "valorTotal", "value", "total"),
-    lucro: getNum("lucro", "profit", "profitLoss", "lucro_total"),
-    variacao: getNum("variacao", "variation", "percentChange", "percentual"),
+    tipo: getStr("type", "tipo", "categoria") || "outro",
+    quantidade,
+    preco,
+    valorTotal,
+    totalInvestido,
+    lucro,
+    variacao,
   }
+}
+
+/**
+ * Agrupa múltiplas linhas do mesmo ticker (uma por compra individual,
+ * como o backend retorna) em uma única linha consolidada por ativo.
+ *
+ * - quantidade, valorTotal, totalInvestido, lucro: soma simples
+ * - preco: o preço de mercado atual é o mesmo para todos os lotes do
+ *   mesmo ticker no mesmo instante, então usamos o preço de qualquer lote
+ *   processado (não precisa de média ponderada aqui)
+ * - variacao: recalculada a partir do lucro agregado sobre o total
+ *   investido agregado, já que a variação% de um lote isolado não
+ *   representa a posição consolidada no ativo
+ */
+function agruparPorTicker(ativos: AtivoInventario[]): AtivoInventario[] {
+  const grupos = new Map<string, AtivoInventario>()
+
+  for (const ativo of ativos) {
+    const chave = `${ativo.ticker}::${ativo.tipo}`
+    const existente = grupos.get(chave)
+
+    if (!existente) {
+      grupos.set(chave, { ...ativo })
+      continue
+    }
+
+    existente.quantidade += ativo.quantidade
+    existente.valorTotal += ativo.valorTotal
+    existente.totalInvestido += ativo.totalInvestido
+    existente.lucro += ativo.lucro
+    // Preço de mercado é o mesmo em todos os lotes do ticker; mantém o mais recente não-zero
+    existente.preco = ativo.preco || existente.preco
+
+    if ((!existente.nome || existente.nome === existente.ticker) && ativo.nome) {
+      existente.nome = ativo.nome
+    }
+  }
+
+  return Array.from(grupos.values()).map((g) => {
+    const variacaoAgregada = g.totalInvestido > 0 ? (g.lucro / g.totalInvestido) * 100 : 0
+    return {
+      ...g,
+      variacao: variacaoAgregada,
+    }
+  })
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://valrat.onrender.com"
@@ -121,8 +204,9 @@ export function useInventario(open: boolean): UseInventarioResult {
       .then((data) => {
         if (cancelado) return
 
-        const lista = Array.isArray(data.assets) ? data.assets.map(normalizarAtivo) : []
-        // Ordena por valor total decrescente — maior posição primeiro
+        const listaBruta = Array.isArray(data.assets) ? data.assets.map(normalizarAtivo) : []
+        const lista = agruparPorTicker(listaBruta)
+        // Ordena por valor de mercado decrescente — maior posição primeiro
         lista.sort((a, b) => b.valorTotal - a.valorTotal)
 
         setAtivos(lista)

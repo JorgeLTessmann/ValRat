@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { 
   ArrowUpRight, 
   ArrowDownRight, 
@@ -14,6 +15,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import type { Transaction } from '@/lib/types'
 import { assetTypeLabels } from '@/lib/types'
+import { normalizarTransacao } from '@/lib/normalizar-transacao'
+import { TransacoesModal } from '@/components/dashboard/transacoes-modal'
 
 interface TransactionLedgerProps {
   transactions: Transaction[]
@@ -21,6 +24,16 @@ interface TransactionLedgerProps {
 }
 
 export function TransactionLedger({ transactions, isLoading }: TransactionLedgerProps) {
+  const [modalAberto, setModalAberto] = useState(false)
+
+  // O backend retorna o campo `type` em português (ex: "compra", "venda").
+  // Normalizamos aqui antes de qualquer render para que os labels/ícones/cores
+  // (que esperam 'buy' | 'sell' | 'dividend' | 'deposit' | 'withdraw') funcionem.
+  const transacoesNormalizadas = useMemo(
+    () => transactions.map((t) => normalizarTransacao(t as unknown as Record<string, unknown>)),
+    [transactions]
+  )
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -130,7 +143,7 @@ export function TransactionLedger({ transactions, isLoading }: TransactionLedger
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2.5">
-        {transactions.slice(0, 6).map((transaction) => {
+        {transacoesNormalizadas.slice(0, 6).map((transaction) => {
           const isNegativeAmount = transaction.type === 'sell' || transaction.type === 'withdraw'
           
           return (
@@ -193,12 +206,21 @@ export function TransactionLedger({ transactions, isLoading }: TransactionLedger
           )
         })}
 
-        {transactions.length > 6 && (
-          <button className="w-full mt-2 py-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-[#D4AF37] hover:border-amber-500/30 hover:bg-amber-500/[0.02] border border-dashed border-border rounded-xl transition-all duration-150">
+        {transacoesNormalizadas.length > 6 && (
+          <button
+            onClick={() => setModalAberto(true)}
+            className="w-full mt-2 py-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-[#D4AF37] hover:border-amber-500/30 hover:bg-amber-500/[0.02] border border-dashed border-border rounded-xl transition-all duration-150"
+          >
             Ver todas as transações
           </button>
         )}
       </CardContent>
+
+      <TransacoesModal
+        open={modalAberto}
+        onOpenChange={setModalAberto}
+        transactions={transacoesNormalizadas}
+      />
     </Card>
   )
 }
